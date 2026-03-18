@@ -8,6 +8,9 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "ora-worker": "./dist/worker-cli.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -19,7 +22,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts",
+    "build": "tsup src/index.ts --format esm,cjs --dts && tsup src/worker-cli.ts --format esm --out-dir dist",
     "check": "tsc --noEmit",
     "dev": "bun run scripts/dev.ts",
     "example:corpus": "bun run examples/run-corpus.ts",
@@ -72,6 +75,7 @@
     "node": ">=18.0.0"
   },
   "devDependencies": {
+    "@types/node": "^24.5.2",
     "tsup": "^8.5.0",
     "typescript": "^5.9.2"
   }

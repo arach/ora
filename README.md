@@ -226,6 +226,60 @@ Local examples:
 
 The local site playground at `/playground` can also synthesize and play paragraph audio through the built-in OpenAI route when an `OPENAI_API_KEY` is available.
 
+## Remote Worker
+
+Ora can also talk to a remote worker over HTTP, which makes it practical to run
+an open-source model on a separate machine such as a Tailscale-connected Mac Mini.
+
+Start the bundled worker locally or on a remote host:
+
+```bash
+pnpm install
+pnpm run build
+node dist/worker-cli.js init --host 0.0.0.0 --port 4020 --token dev-secret
+node dist/worker-cli.js serve --config .ora-worker/config.json
+```
+
+Register the remote worker as a provider:
+
+```ts
+import { createOraRuntime, createRemoteTtsProvider } from "@arach/ora";
+
+const runtime = createOraRuntime({
+  providers: [
+    createRemoteTtsProvider({
+      id: "mini",
+      baseUrl: "http://mac-mini.tailnet.ts.net:4020",
+      apiKey: process.env.ORA_REMOTE_TOKEN,
+    }),
+  ],
+});
+
+const response = await runtime.synthesize({
+  provider: "mini",
+  text: "Read this from the remote worker.",
+  voice: "mock-voice",
+});
+```
+
+Worker endpoints:
+
+- `GET /health`
+- `GET /v1/voices`
+- `POST /v1/audio/speech`
+- `POST /v1/audio/speech/stream`
+
+The first worker backend is a mock transport backend so the local and remote flow
+can be tested end-to-end before a native model runner is plugged in. Streaming
+returns audio chunks and character boundary events so Ora can preserve the
+existing tracking correctness ladder across the network boundary.
+
+Structured docs:
+
+- `docs/remote-worker.md`
+- `docs/cookbook/system-macos.md`
+- `docs/cookbook/kokoro-mlx-mac-mini.md`
+
 ## Notes
 
 - Boundary-driven updates are authoritative.
