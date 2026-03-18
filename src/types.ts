@@ -263,3 +263,104 @@ export type OraRuntimeOptions = {
 export type OraSynthesizeOptions = {
   signal?: AbortSignal;
 };
+
+export type OraRemoteTtsProviderOptions = {
+  id?: OraProviderId;
+  baseUrl: string;
+  apiKey?: string;
+  fetch?: typeof fetch;
+};
+
+export type OraWorkerVoice = {
+  id: string;
+  label?: string;
+};
+
+export type OraWorkerHealth = {
+  ok: boolean;
+  provider: string;
+  voices: OraWorkerVoice[];
+  capabilities: {
+    streaming: boolean;
+    boundaries: boolean;
+  };
+};
+
+export type OraWorkerSynthesisRequest = {
+  text: string;
+  voice?: string;
+  rate?: number;
+  instructions?: string;
+  format?: OraAudioFormat;
+  metadata?: Record<string, string | number | boolean | null>;
+};
+
+export type OraWorkerSynthesisResponse = {
+  requestId: string;
+  cacheKey: string;
+  voice: string;
+  rate: number;
+  format: OraAudioFormat;
+  cached: boolean;
+  audioBase64?: string;
+  audioUrl?: string;
+  mimeType?: string;
+  durationMs: number;
+  metadata?: Record<string, string | number | boolean | null>;
+};
+
+export type OraWorkerStreamEvent =
+  | {
+      type: "started";
+      requestId: string;
+      metadata?: Record<string, string | number | boolean | null>;
+    }
+  | {
+      type: "audio";
+      audioBase64: string;
+      mimeType?: string;
+    }
+  | {
+      type: "boundary" | "provider-mark";
+      charIndex: number;
+      timeMs?: number;
+    }
+  | {
+      type: "metadata";
+      metadata?: Record<string, string | number | boolean | null>;
+    }
+  | {
+      type: "completed";
+      timeMs?: number;
+      metadata?: Record<string, string | number | boolean | null>;
+    };
+
+export type OraWorkerSynthesisResult = {
+  audioData?: Uint8Array;
+  audioUrl?: string;
+  mimeType?: string;
+  durationMs?: number;
+  cached?: boolean;
+  metadata?: Record<string, string | number | boolean | null>;
+};
+
+export type OraWorkerBackend = {
+  id: string;
+  listVoices(): Promise<OraWorkerVoice[]> | OraWorkerVoice[];
+  health(): Promise<{ ok: boolean }> | { ok: boolean };
+  synthesize(
+    request: OraWorkerSynthesisRequest,
+  ): Promise<OraWorkerSynthesisResult>;
+  stream?(
+    request: OraWorkerSynthesisRequest,
+  ): AsyncIterable<OraWorkerStreamEvent> | Promise<AsyncIterable<OraWorkerStreamEvent>>;
+};
+
+export type OraHttpWorkerBackendOptions = {
+  id?: string;
+  baseUrl: string;
+  model?: string;
+  voice?: string;
+  langCode?: string;
+  fetch?: typeof fetch;
+};
