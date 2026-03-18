@@ -9,6 +9,7 @@ The initial package is intentionally small:
 - synthesis request, provider, and streaming runtime types
 - provider registration and credential storage primitives
 - instrumentation hooks for synthesis lifecycle events
+- paragraph-first document sessions and playback orchestration
 - text tokenization and estimated playback timelines
 - a playback tracker that can follow exact boundary events or fall back to clock-based estimates
 
@@ -29,6 +30,7 @@ It also provides a thin runtime abstraction for TTS providers so apps can keep p
 - credential resolution
 - synthesis lifecycle instrumentation
 - streaming audio and boundary events
+- paragraph queueing, prefetch, and playback handoff
 
 ## Correctness ladder
 
@@ -165,12 +167,72 @@ for await (const event of runtime.stream({
 }
 ```
 
+## Document Playback
+
+Ora also includes paragraph-first primitives for page-sized reading surfaces:
+
+```ts
+import {
+  OraDocumentSession,
+  OraPlaybackOrchestrator,
+  OraRuntime,
+  createOpenAiTtsProvider,
+} from "@arach/ora";
+
+const runtime = new OraRuntime({
+  providers: [createOpenAiTtsProvider()],
+});
+
+runtime.setCredentials("openai", {
+  apiKey: process.env.OPENAI_API_KEY ?? "",
+});
+
+const session = new OraDocumentSession({
+  text,
+  paragraphLength: 280,
+  voice: "alloy",
+  preferences: {
+    priority: "quality",
+    delivery: "buffered",
+  },
+});
+
+const orchestrator = new OraPlaybackOrchestrator({
+  session: session.snapshot(),
+});
+
+await orchestrator.synthesizeUnit(runtime, {
+  provider: "openai",
+  index: 0,
+  startLatencyMs: 180,
+});
+
+console.log(orchestrator.snapshot());
+```
+
+## OpenAI Audio
+
+There is now a real OpenAI provider adapter in the package:
+
+```ts
+import { createOpenAiTtsProvider } from "@arach/ora";
+```
+
+Local examples:
+
+- `bun run example:openai` writes one article excerpt to `.ora-output/openai-article-sample.mp3`
+- `bun run example:openai-document` synthesizes the first two paragraph units from the book example
+- `bun run example:orchestrator` prints the paragraph queue and playback handoff snapshot
+
+The local site playground at `/playground` can also synthesize and play paragraph audio through the built-in OpenAI route when an `OPENAI_API_KEY` is available.
+
 ## Notes
 
 - Boundary-driven updates are authoritative.
 - Estimated timelines are a fallback, not truth.
 - Segment tracking stays generic: pass paragraphs, sentences, or any other ranges from the host app.
 - Provider adapters stay transport-specific while Ora owns registry, credentials, and instrumentation.
+- The current `0.1` path is OpenAI-first and paragraph-first.
 
 ## Development
 
