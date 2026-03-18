@@ -1,0 +1,47 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import docsJson from "../../../docs.json";
+
+const docs = docsJson as {
+  groups: Array<{
+    id: string;
+    title: string;
+    items: Array<{
+      id: string;
+      title: string;
+      description?: string;
+      slug?: string;
+    }>;
+  }>;
+};
+
+const cards = docs.groups.flatMap((group) =>
+  group.items.map((item) => ({
+    ...item,
+    groupTitle: group.title,
+  })),
+);
+---
+
+<BaseLayout title="Ora Docs">
+  <div class="docs-index">
+    <div class="docs-index-header">
+      <div class="docs-kicker">Documentation</div>
+      <h1>Follow the real playback state.</h1>
+      <p class="docs-description">
+        Ora gives speech interfaces a stable coordination layer for tokenization, estimated
+        timing, and playback tracking.
+      </p>
+    </div>
+
+    <div class="docs-card-grid">
+      {cards.map((item) => (
+        <a class="docs-card" href={item.slug ?? `/docs/${item.id}`}>
+          <span>{item.groupTitle}</span>
+          <strong>{item.title}</strong>
+          <p>{item.description ?? "Open documentation page"}</p>
+        </a>
+      ))}
+    </div>
+  </div>
+</BaseLayout>

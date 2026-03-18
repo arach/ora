@@ -1,0 +1,30 @@
+{
+  "defaults": {
+    "template": "docs",
+    "accent": "#0f766e",
+    "accentSecondary": "#134e4a",
+    "background": "#f3fbfa",
+    "textColor": "#0f172a",
+    "output": "public/og.png"
+  },
+  "jobs": [
+    {
+      "id": "repo-card",
+      "type": "single",
+      "template": "branded",
+      "output": "public/og.png",
+      "title": "Ora",
+      "subtitle": "TypeScript-first playback tracking for text-to-speech interfaces",
+      "tag": "TTS Runtime Primitives"
+    },
+    {
+      "id": "docs-pages",
+      "type": "docs-manifest",
+      "manifest": "./docs.json",
+      "outputDir": "public/og/docs",
+      "title": "{{title}}",
+      "subtitle": "{{group.title}} / Ora Docs",
+      "tag": "{{project.name}}"
+    }
+  ]
+}

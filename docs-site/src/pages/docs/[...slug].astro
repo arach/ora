@@ -1,0 +1,39 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+
+export async function getStaticPaths() {
+  const markdownFiles = import.meta.glob("../../../../docs/**/*.md");
+
+  const entries = Object.entries(markdownFiles).filter(([filePath]) => {
+    return !filePath.endsWith(".agent.md");
+  });
+
+  return Promise.all(
+    entries.map(async ([filePath, loader]) => {
+      const page = await loader();
+      const slug = filePath.split("/docs/")[1].replace(/\.md$/, "");
+
+      return {
+        params: { slug },
+        props: { page },
+      };
+    }),
+  );
+}
+
+const { page } = Astro.props;
+const { Content, frontmatter } = page;
+const headings = (await page.getHeadings?.()) ?? page.headings ?? [];
+const slug = Astro.params.slug || "overview";
+const fileName = slug.split("/").pop() ?? "Docs";
+const fallbackTitle = fileName
+  .split("-")
+  .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+  .join(" ");
+const title = frontmatter?.title ?? fallbackTitle;
+const description = frontmatter?.description;
+---
+
+<DocsLayout title={title} description={description} headings={headings}>
+  <Content />
+</DocsLayout>

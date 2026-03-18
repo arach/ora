@@ -1,0 +1,14 @@
+---
+const { headings = [] } = Astro.props;
+---
+
+<div>
+  <div class="toc-title">On This Page</div>
+  {headings.length === 0 ? (
+    <a class="toc-link" href="#top">Top</a>
+  ) : (
+    headings.map((heading) => (
+      <a class="toc-link" href={`#${heading.slug}`}>{heading.text}</a>
+    ))
+  )}
+</div>

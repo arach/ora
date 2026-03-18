@@ -1,0 +1,12 @@
+dist
+node_modules
+.DS_Store
+.next
+.next.*
+.astro
+site/.next
+site/.next.*
+site/node_modules
+docs-site/node_modules
+docs-site/dist
+docs-site/.astro

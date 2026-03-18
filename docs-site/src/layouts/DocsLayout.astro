@@ -1,0 +1,28 @@
+---
+import BaseLayout from "./BaseLayout.astro";
+import SidebarNav from "../components/SidebarNav.astro";
+import Toc from "../components/Toc.astro";
+
+const { title, description, headings = [] } = Astro.props;
+---
+
+<BaseLayout title={`${title} - Ora Docs`}>
+  <div class="docs-layout">
+    <aside class="docs-panel docs-sidebar">
+      <SidebarNav currentPath={Astro.url.pathname} />
+    </aside>
+
+    <main class="docs-panel docs-main">
+      <div class="docs-kicker">Ora Docs</div>
+      <h1>{title}</h1>
+      {description && <p class="docs-description">{description}</p>}
+      <article class="doc-body">
+        <slot />
+      </article>
+    </main>
+
+    <aside class="docs-panel docs-toc">
+      <Toc headings={headings} />
+    </aside>
+  </div>
+</BaseLayout>

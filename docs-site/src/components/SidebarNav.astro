@@ -1,0 +1,21 @@
+---
+import { navGroups } from "../lib/nav";
+
+const { currentPath } = Astro.props;
+---
+
+<nav>
+  {navGroups.map((group) => (
+    <div class="nav-group">
+      <div class="nav-group-title">{group.title}</div>
+      {group.items.map((item) => (
+        <a
+          href={item.href}
+          class={`nav-link ${currentPath === item.href ? "active" : ""}`}
+        >
+          {item.title}
+        </a>
+      ))}
+    </div>
+  ))}
+</nav>

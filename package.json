@@ -1,0 +1,74 @@
+{
+  "name": "@arach/ora",
+  "version": "0.0.1",
+  "description": "TypeScript-first text-to-speech runtime primitives and playback tracking.",
+  "type": "module",
+  "packageManager": "bun@1.3.5",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts",
+    "check": "tsc --noEmit",
+    "dev": "bun run scripts/dev.ts",
+    "example:corpus": "bun run examples/run-corpus.ts",
+    "example:page": "bun run examples/run-page.ts",
+    "test": "bun test",
+    "tools:install": "(cd ../og && bun install) && (cd ../dewey-codex && pnpm install)",
+    "tools:build": "(cd ../og && bun run build) && (cd ../dewey-codex/packages/docs && pnpm build)",
+    "site:install": "(cd site && bun install) && (cd docs-site && bun install)",
+    "site:build": "bun run docs:generate && (cd site && bun run build) && (cd docs-site && bun run build) && bun run og:generate",
+    "docs:generate": "node ../dewey-codex/packages/docs/dist/cli/index.js generate",
+    "docs:json": "node ../dewey-codex/packages/docs/dist/cli/index.js generate --docs-json",
+    "og:generate": "node ../og/dist/cli.js generate og.config.json",
+    "content:generate": "bun run docs:generate && bun run og:generate",
+    "site:docs": "bun run docs:generate && (cd docs-site && bun run build)",
+    "site": "bun run site:build",
+    "site:all": "bun run tools:build && bun run site:build",
+    "site:dev": "bun run scripts/dev.ts",
+    "site:proxy": "bun run scripts/site-proxy.ts",
+    "verify": "bun run test && bun run check && bun run build && bun run content:generate",
+    "setup:local": "bun install && bun run site:install && bun run tools:install && bun run tools:build",
+    "run:all": "bun run tools:build && bun run verify",
+    "prepublishOnly": "bun run test && bun run check && bun run build"
+  },
+  "keywords": [
+    "tts",
+    "speech",
+    "audio",
+    "playback",
+    "tracking"
+  ],
+  "author": "arach",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/arach/ora.git"
+  },
+  "homepage": "https://github.com/arach/ora#readme",
+  "bugs": {
+    "url": "https://github.com/arach/ora/issues"
+  },
+  "engines": {
+    "bun": ">=1.3.5",
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.2"
+  }
+}
