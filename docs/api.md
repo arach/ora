@@ -14,6 +14,8 @@ Ora exposes these primary surfaces:
 - `createEstimatedTimeline(options)`
 - `findTimedTokenAtTime(timeline, timeMs)`
 - `OraPlaybackTracker`
+- `createRemoteTtsProvider(options)`
+- `createOraWorkerServer(options)`
 
 ## Key Types
 
@@ -71,3 +73,20 @@ Use this when the host app only knows a normalized playback fraction.
 - boundary and provider updates should stay cheap and deterministic
 - estimated timing should stay configurable
 - token and segment selection should remain purely range-based
+
+## Runtime Boundary
+
+Ora&apos;s worker and provider APIs assume a clean backend contract:
+
+- list voices
+- report health
+- synthesize audio
+- optionally stream audio and timing events
+
+The backend may invoke speech through:
+
+- a local OS service
+- an in-process runtime
+- an upstream HTTP model server
+
+Ora does not require direct SDK integration with any specific model stack.

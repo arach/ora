@@ -83,8 +83,8 @@ export default async function HomePage() {
             </h1>
             <p className="hero-sub">
               Ora keeps your interface synchronized with speech output.
-              Tokenize, estimate timing, track playback — with or without
-              provider support.
+              Tokenize, estimate timing, track playback, and front remote
+              model servers through a stable worker contract.
             </p>
             <div className="hero-actions">
               <code className="install">bun add @arach/ora</code>
@@ -157,11 +157,11 @@ export default async function HomePage() {
             <div className="point">
               <span className="point-num">03</span>
               <div>
-                <h3>Every team rebuilds this</h3>
+                <h3>Inference should stay replaceable</h3>
                 <p>
-                  The coordination between text display and audio playback is
-                  the same problem in every speech interface. Ora solves it
-                  once.
+                  Ora should own the runtime boundary, not the internals of
+                  every model stack. Put MLX Audio, system speech, or another
+                  backend behind the worker and keep the client surface stable.
                 </p>
               </div>
             </div>

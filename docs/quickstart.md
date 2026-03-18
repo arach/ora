@@ -11,6 +11,19 @@ group: Getting Started
 bun add @arach/ora
 ```
 
+## Scope
+
+Ora is the coordination layer around speech, not the model runtime itself.
+
+If you are serving a local model on another machine, the recommended shape is:
+
+1. run the model server on the host
+2. run an Ora worker in front of it
+3. point your app at the Ora worker through `createRemoteTtsProvider(...)`
+
+That keeps Ora&apos;s API stable while model setup stays in backend-specific
+recipes.
+
 ## Basic Flow
 
 ```ts
@@ -62,3 +75,5 @@ Segments are generic character ranges. They can represent:
 - arbitrary host-app spans
 
 That keeps Ora independent from any specific document model.
+
+For remote deployments and backend recipes, see `docs/remote-worker.md`.

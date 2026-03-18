@@ -15,6 +15,27 @@ It focuses on the coordination layer that usually gets messy in speech UIs:
 
 Ora is intentionally small. It does not try to own your synthesis provider, caching layer, or audio player UI.
 
+## Boundary
+
+Ora owns the runtime and playback coordination boundary.
+
+That means Ora is responsible for:
+
+- provider registration and request normalization
+- the remote worker contract
+- playback tracking and orchestration
+- merging boundary, provider-mark, and clock-driven state
+
+Ora is not responsible for:
+
+- model-specific inference internals
+- Python or ML runtime setup
+- host-specific package troubleshooting
+
+Model servers such as MLX Audio sit behind Ora as backends. Ora can talk to them
+through a remote worker or provider adapter, but it should not absorb their
+runtime complexity into the core library.
+
 ## Correctness Ladder
 
 Playback state should be resolved in this order:
