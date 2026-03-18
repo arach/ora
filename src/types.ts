@@ -48,6 +48,8 @@ export type OraSynthesisResponse = {
   format: OraAudioFormat;
   cached: boolean;
   audioUrl: string;
+  audioData?: Uint8Array;
+  mimeType?: string;
   startedAt: string;
   completedAt: string;
   durationMs: number;
@@ -102,6 +104,79 @@ export type OraPlaybackTrackerOptions = {
   tokens?: OraTextToken[];
   timeline?: OraTimedToken[];
   segments?: OraPlaybackSegment[];
+};
+
+export type OraSynthesisUnitStatus =
+  | "idle"
+  | "queued"
+  | "synthesizing"
+  | "ready"
+  | "playing"
+  | "done"
+  | "failed";
+
+export type OraDocumentSessionOptions = {
+  text: string;
+  paragraphLength?: number;
+  voice?: string;
+  rate?: number;
+  instructions?: string;
+  preferences?: OraSynthesisPreferences;
+  metadata?: Record<string, string | number | boolean | null>;
+};
+
+export type OraSynthesisUnit = {
+  id: string;
+  index: number;
+  text: string;
+  start: number;
+  end: number;
+  voice?: string;
+  rate?: number;
+  instructions?: string;
+  preferences?: OraSynthesisPreferences;
+  metadata?: Record<string, string | number | boolean | null>;
+  status: OraSynthesisUnitStatus;
+  attemptCount: number;
+  audioUrl?: string;
+  audioData?: Uint8Array;
+  mimeType?: string;
+  durationMs?: number;
+  error?: string;
+};
+
+export type OraDocumentSessionSnapshot = {
+  text: string;
+  units: OraSynthesisUnit[];
+  queuedCount: number;
+  synthesizingCount: number;
+  readyCount: number;
+  playingCount: number;
+  doneCount: number;
+  failedCount: number;
+};
+
+export type OraPlaybackOrchestratorOptions = {
+  session: {
+    text: string;
+    units: OraSynthesisUnit[];
+  };
+};
+
+export type OraSynthesizeUnitOptions = {
+  provider: OraProviderId;
+  index: number;
+  startLatencyMs?: number;
+};
+
+export type OraPlaybackOrchestratorSnapshot = {
+  session: OraDocumentSessionSnapshot;
+  activeUnit: OraSynthesisUnit | null;
+  nextUnit: OraSynthesisUnit | null;
+  bufferedUnitCount: number;
+  pendingUnitCount: number;
+  firstAudioMs: number | null;
+  tracker: OraPlaybackSnapshot;
 };
 
 export type OraInstrumentationEventName =
