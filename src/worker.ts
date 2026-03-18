@@ -8,6 +8,7 @@ import { tokenizeText } from "./tokenize";
 import { createEstimatedTimeline } from "./timeline";
 import type {
   OraAudioFormat,
+  OraHttpWorkerBackendOptions,
   OraWorkerBackend,
   OraWorkerHealth,
   OraWorkerStreamEvent,
@@ -65,6 +66,18 @@ function resolveMimeType(format: OraAudioFormat) {
     default:
       return "audio/mpeg";
   }
+}
+
+function getFetch(fetchImpl?: typeof fetch) {
+  if (fetchImpl) {
+    return fetchImpl;
+  }
+
+  if (typeof fetch !== "function") {
+    throw new Error("Global fetch is not available in this runtime.");
+  }
+
+  return fetch;
 }
 
 function createCacheKey(request: OraWorkerSynthesisRequest) {
@@ -292,6 +305,114 @@ export function createMockOraWorkerBackend(options: {
       yield {
         type: "completed",
         timeMs: timeline.at(-1)?.endMs ?? 0,
+      } satisfies OraWorkerStreamEvent;
+    },
+  };
+}
+
+export function createHttpOraWorkerBackend(
+  options: OraHttpWorkerBackendOptions,
+): OraWorkerBackend {
+  const fetchImpl = getFetch(options.fetch);
+  const baseUrl = options.baseUrl.replace(/\/+$/, "");
+  const model = options.model ?? "mlx-community/Kokoro-82M-bf16";
+  const defaultVoice = options.voice ?? "af_heart";
+  const langCode = options.langCode ?? "a";
+
+  return {
+    id: options.id ?? "http",
+    async listVoices() {
+      return [
+        {
+          id: defaultVoice,
+          label: `${defaultVoice} (${model})`,
+        },
+      ];
+    },
+    async health() {
+      const response = await fetchImpl(`${baseUrl}/v1/models`);
+      return { ok: response.ok };
+    },
+    async synthesize(request) {
+      const response = await fetchImpl(`${baseUrl}/v1/audio/speech`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          input: request.text,
+          voice: request.voice ?? defaultVoice,
+          lang_code: langCode,
+          speed: request.rate ?? 1,
+          response_format: request.format ?? "wav",
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP worker backend failed with status ${response.status}.`);
+      }
+
+      const audioData = new Uint8Array(await response.arrayBuffer());
+      const filePath = resolve(tmpdir(), `ora-worker-proxy-${randomUUID()}.wav`);
+      await writeFile(filePath, audioData);
+      const durationMs = await getAudioDurationMs(filePath);
+
+      return {
+        audioData,
+        mimeType: response.headers.get("content-type") ?? "audio/wav",
+        durationMs,
+        cached: false,
+        metadata: {
+          backend: "http",
+          model,
+          voice: request.voice ?? defaultVoice,
+          upstream: baseUrl,
+        },
+      };
+    },
+    async *stream(request) {
+      const requestId = randomUUID();
+      const result = await this.synthesize(request);
+      const tokens = tokenizeText(request.text);
+      const timeline = createEstimatedTimeline({
+        text: request.text,
+        tokens,
+        durationMs: result.durationMs ?? Math.max(320, request.text.length * 45),
+      });
+
+      yield {
+        type: "started",
+        requestId,
+        metadata: {
+          backend: "http",
+          model,
+          voice: request.voice ?? defaultVoice,
+        },
+      } satisfies OraWorkerStreamEvent;
+
+      yield {
+        type: "audio",
+        audioBase64: toBase64(result.audioData ?? new Uint8Array()),
+        mimeType: result.mimeType,
+      } satisfies OraWorkerStreamEvent;
+
+      for (const token of timeline) {
+        if (!token.isWord) {
+          continue;
+        }
+
+        yield {
+          type: "boundary",
+          charIndex: token.start,
+          timeMs: token.startMs,
+        } satisfies OraWorkerStreamEvent;
+      }
+
+      yield {
+        type: "completed",
+        timeMs: result.durationMs,
+        metadata: result.metadata,
       } satisfies OraWorkerStreamEvent;
     },
   };
@@ -601,6 +722,14 @@ export async function runOraWorkerCli(argv: string[]) {
           provider: values.get("provider") ?? "mock",
           voice: values.get("voice") ?? "mock-voice",
         })
+      : backendName === "http"
+        ? createHttpOraWorkerBackend({
+            id: values.get("provider") ?? "http",
+            baseUrl: values.get("upstream") ?? "http://127.0.0.1:4022",
+            model: values.get("model") ?? "mlx-community/Kokoro-82M-bf16",
+            voice: values.get("voice") ?? "af_heart",
+            langCode: values.get("lang") ?? "a",
+          })
       : createSystemOraWorkerBackend({
           defaultVoice: values.get("voice"),
         });

@@ -35,6 +35,7 @@ export type {
   OraTimedToken,
   OraTtsProvider,
   OraWorkerBackend,
+  OraHttpWorkerBackendOptions,
   OraWorkerHealth,
   OraWorkerStreamEvent,
   OraWorkerSynthesisRequest,
@@ -56,6 +57,7 @@ export { createEstimatedTimeline, findTimedTokenAtTime } from "./timeline";
 export { OraPlaybackTracker } from "./tracker";
 export { OraRuntime, createOraRuntime } from "./runtime";
 export {
+  createHttpOraWorkerBackend,
   createMockOraWorkerBackend,
   createOraWorkerServer,
   readOraWorkerConfig,

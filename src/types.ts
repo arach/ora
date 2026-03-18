@@ -355,3 +355,12 @@ export type OraWorkerBackend = {
     request: OraWorkerSynthesisRequest,
   ): AsyncIterable<OraWorkerStreamEvent> | Promise<AsyncIterable<OraWorkerStreamEvent>>;
 };
+
+export type OraHttpWorkerBackendOptions = {
+  id?: string;
+  baseUrl: string;
+  model?: string;
+  voice?: string;
+  langCode?: string;
+  fetch?: typeof fetch;
+};

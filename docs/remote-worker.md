@@ -78,3 +78,9 @@ That keeps the package support boundary clear:
 
 - [System macOS Backend](/Users/arach/dev/ora/docs/cookbook/system-macos.md)
 - [Kokoro On Apple Silicon](/Users/arach/dev/ora/docs/cookbook/kokoro-mlx-mac-mini.md)
+
+For MLX/Kokoro setups, the recommended deployment is:
+
+1. run MLX Audio locally on the host
+2. run Ora worker in `http` backend mode against that local MLX server
+3. point Ora clients at the Ora worker, not directly at MLX Audio

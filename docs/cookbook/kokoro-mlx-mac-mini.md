@@ -86,6 +86,32 @@ Useful endpoints:
 - `GET /v1/models`
 - `POST /v1/audio/speech`
 
+## Optional Ora Worker Proxy
+
+If you want one stable Ora worker endpoint instead of pointing clients at MLX Audio directly,
+run the Ora worker in HTTP-backend mode and proxy to the local MLX Audio server:
+
+```bash
+node dist/worker-cli.js serve \
+  --backend http \
+  --upstream http://127.0.0.1:4022 \
+  --model mlx-community/Kokoro-82M-bf16 \
+  --voice af_heart \
+  --lang a \
+  --host 0.0.0.0 \
+  --port 4023 \
+  --token your-token
+```
+
+That gives you the normal Ora worker endpoints:
+
+- `GET /health`
+- `GET /v1/voices`
+- `POST /v1/audio/speech`
+- `POST /v1/audio/speech/stream`
+
+while keeping Kokoro isolated behind the worker.
+
 ## Example Request
 
 ```bash
@@ -117,4 +143,4 @@ Recommended product shape:
 
 - keep Ora’s worker/provider contract stable
 - treat MLX/Kokoro as a documented backend recipe
-- later add an Ora worker backend that proxies to MLX Audio, instead of hard-coding all ML setup into Ora itself
+- Ora can proxy to MLX Audio as an HTTP backend, instead of hard-coding all ML setup into Ora itself
