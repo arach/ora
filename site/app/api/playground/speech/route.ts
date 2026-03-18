@@ -19,6 +19,7 @@ export async function POST(request: Request) {
     format?: "mp3" | "wav" | "aac" | "opus";
     priority?: "quality" | "balanced" | "responsiveness";
     instructions?: string;
+    bypassCache?: boolean;
   };
 
   if (!body.text?.trim()) {
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
       format: body.format,
       priority: body.priority,
       instructions: body.instructions,
+      cacheMode: body.bypassCache ? "bypass-cache" : "use-cache",
     });
 
     return new NextResponse(result.data, {
@@ -45,6 +47,7 @@ export async function POST(request: Request) {
       headers: {
         "Content-Type": result.mimeType,
         "X-Ora-Model": result.model,
+        "X-Ora-Cache": result.cache,
         "Cache-Control": "no-store",
       },
     });

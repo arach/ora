@@ -548,6 +548,15 @@ a {
   color: var(--text-2);
 }
 
+.playground-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.72rem;
+  color: var(--text-2);
+}
+
 .playground-error {
   color: #f2a388;
 }
@@ -607,6 +616,10 @@ a {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.05);
   overflow: hidden;
+}
+
+.playground-progress.interactive {
+  cursor: pointer;
 }
 
 .playground-progress-fill {

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { MouseEvent } from "react";
+import { motion } from "motion/react";
 import {
   createSegmentsFromParagraphs,
   getPlaygroundEntry,
@@ -63,6 +65,64 @@ function findActiveToken(
   return paragraphTokens[tokenIndex] ?? null;
 }
 
+function getParagraphTokens(paragraph: PlaygroundParagraph, tokens: PlaygroundToken[]) {
+  return tokens.filter((token) => token.start >= paragraph.start && token.end <= paragraph.end);
+}
+
+function getWaveState(tokenIndex: number, tokenCount: number, progress: number) {
+  if (tokenCount <= 1) {
+    return { emphasis: 1, distance: 0 };
+  }
+
+  const floatIndex = progress * (tokenCount - 1);
+  const distance = tokenIndex - floatIndex;
+  const normalizedDistance = Math.min(Math.abs(distance) / 1.8, 1);
+  const emphasis = Math.cos(normalizedDistance * Math.PI * 0.5) ** 2;
+
+  return {
+    emphasis,
+    distance,
+  };
+}
+
+function getTokenVisualState(distance: number, emphasis: number) {
+  const proximity = Math.abs(distance);
+
+  if (proximity < 0.45) {
+    return {
+      opacity: 1,
+      scale: 1.035,
+      y: -1.5,
+      color: "rgb(255, 232, 214)",
+      underlineOpacity: 0.95,
+      underlineScale: 1,
+      letterSpacing: "0em",
+    };
+  }
+
+  if (proximity < 1.2) {
+    return {
+      opacity: 0.82,
+      scale: 1.01,
+      y: -0.4,
+      color: "rgba(228, 210, 195, 0.96)",
+      underlineOpacity: 0.28 + emphasis * 0.12,
+      underlineScale: 0.82,
+      letterSpacing: "0em",
+    };
+  }
+
+  return {
+    opacity: 0.56,
+    scale: 1,
+    y: 0,
+    color: "rgba(186, 181, 175, 0.88)",
+    underlineOpacity: 0,
+    underlineScale: 0.72,
+    letterSpacing: "0em",
+  };
+}
+
 export default function PlaygroundPage() {
   const [kind, setKind] = useState<PlaygroundKind>("book");
   const [units, setUnits] = useState<PlaybackUnit[]>([]);
@@ -71,12 +131,26 @@ export default function PlaygroundPage() {
   const [model, setModel] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [displayTime, setDisplayTime] = useState(0);
+  const [cacheMode, setCacheMode] = useState<"use-cache" | "bypass-cache">("use-cache");
+  const [cacheStatus, setCacheStatus] = useState<string | null>(null);
+  const [isLocalhost, setIsLocalhost] = useState(false);
   const [playError, setPlayError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const unitsRef = useRef<PlaybackUnit[]>([]);
   const currentUnitIndexRef = useRef<number | null>(null);
   const objectUrlsRef = useRef<string[]>([]);
+  const rafRef = useRef<number | null>(null);
   const data = useMemo(() => buildPlaybackState(kind), [kind]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsLocalhost(
+        window.location.hostname === "localhost" ||
+          window.location.hostname === "127.0.0.1",
+      );
+    }
+  }, []);
 
   useEffect(() => {
     unitsRef.current = units;
@@ -100,7 +174,9 @@ export default function PlaygroundPage() {
     );
     setCurrentUnitIndex(null);
     setAudioProgress(0);
+    setDisplayTime(0);
     setModel(null);
+    setCacheStatus(null);
     setIsPlaying(false);
     setPlayError(null);
   }, [data.paragraphs, data.segments]);
@@ -116,6 +192,10 @@ export default function PlaygroundPage() {
       const progress = audio.duration > 0 ? audio.currentTime / audio.duration : 0;
       setAudioProgress(progress);
       setIsPlaying(!audio.paused);
+      setDisplayTime(audio.currentTime);
+      if (!audio.paused) {
+        rafRef.current = window.requestAnimationFrame(update);
+      }
     };
 
     const ended = async () => {
@@ -157,23 +237,40 @@ export default function PlaygroundPage() {
         } else {
           setCurrentUnitIndex(null);
           setIsPlaying(false);
+          setDisplayTime(0);
         }
       }
     };
 
-    const pause = () => setIsPlaying(false);
-    const play = () => setIsPlaying(true);
+    const pause = () => {
+      setIsPlaying(false);
+      if (rafRef.current !== null) {
+        window.cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+    const play = () => {
+      setIsPlaying(true);
+      if (rafRef.current !== null) {
+        window.cancelAnimationFrame(rafRef.current);
+      }
+      rafRef.current = window.requestAnimationFrame(update);
+    };
 
-    audio.addEventListener("timeupdate", update);
     audio.addEventListener("ended", ended);
     audio.addEventListener("pause", pause);
     audio.addEventListener("play", play);
+    audio.addEventListener("seeked", update);
 
     return () => {
-      audio.removeEventListener("timeupdate", update);
       audio.removeEventListener("ended", ended);
       audio.removeEventListener("pause", pause);
       audio.removeEventListener("play", play);
+      audio.removeEventListener("seeked", update);
+      if (rafRef.current !== null) {
+        window.cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
     };
   }, []);
 
@@ -183,8 +280,8 @@ export default function PlaygroundPage() {
   const segment =
     currentUnitIndex === null ? null : data.segments[currentUnitIndex] ?? null;
   const elapsedSeconds =
-    audioRef.current && Number.isFinite(audioRef.current.currentTime)
-      ? audioRef.current.currentTime
+    Number.isFinite(displayTime)
+      ? displayTime
       : 0;
   const totalSeconds =
     audioRef.current && Number.isFinite(audioRef.current.duration)
@@ -242,6 +339,7 @@ export default function PlaygroundPage() {
         voice: "alloy",
         format: "mp3",
         priority: kind === "book" ? "quality" : kind === "article" ? "responsiveness" : "balanced",
+        bypassCache: cacheMode === "bypass-cache",
       }),
     });
 
@@ -254,9 +352,14 @@ export default function PlaygroundPage() {
     const audioUrl = URL.createObjectURL(blob);
     objectUrlsRef.current.push(audioUrl);
     const responseModel = response.headers.get("X-Ora-Model");
+    const responseCache = response.headers.get("X-Ora-Cache");
 
     if (responseModel) {
       setModel(responseModel);
+    }
+
+    if (responseCache) {
+      setCacheStatus(responseCache);
     }
 
     setUnits((current) =>
@@ -306,7 +409,7 @@ export default function PlaygroundPage() {
       return;
     }
 
-    const unit = units[index];
+    const unit = unitsRef.current[index];
     const audioUrl = forcedUrl ?? unit?.audioUrl;
 
     if (!unit || !audioUrl) {
@@ -315,6 +418,7 @@ export default function PlaygroundPage() {
 
     setCurrentUnitIndex(index);
     setAudioProgress(0);
+    setDisplayTime(0);
     setUnits((current) =>
       current.map((item, itemIndex) => {
         if (itemIndex < index && item.status === "playing") {
@@ -382,8 +486,24 @@ export default function PlaygroundPage() {
     );
     setCurrentUnitIndex(null);
     setAudioProgress(0);
+    setDisplayTime(0);
+    setCacheStatus(null);
     setIsPlaying(false);
     setPlayError(null);
+  }
+
+  function seekPlayback(event: MouseEvent<HTMLDivElement>) {
+    const audio = audioRef.current;
+
+    if (!audio || !audio.duration) {
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+    audio.currentTime = ratio * audio.duration;
+    setAudioProgress(ratio);
+    setDisplayTime(audio.currentTime);
   }
 
   return (
@@ -420,6 +540,19 @@ export default function PlaygroundPage() {
             Reset
           </button>
           {model ? <span className="playground-meta">model: {model}</span> : null}
+          {cacheStatus ? <span className="playground-meta">cache: {cacheStatus}</span> : null}
+          {isLocalhost ? (
+            <label className="playground-toggle">
+              <input
+                type="checkbox"
+                checked={cacheMode === "bypass-cache"}
+                onChange={(event) =>
+                  setCacheMode(event.target.checked ? "bypass-cache" : "use-cache")
+                }
+              />
+              bypass cache
+            </label>
+          ) : null}
           {playError ? <span className="playground-error">{playError}</span> : null}
         </div>
         <audio ref={audioRef} preload="none" />
@@ -432,7 +565,15 @@ export default function PlaygroundPage() {
             <strong>{Math.round(audioProgress * 100)}%</strong>
           </div>
 
-          <div className="playground-progress">
+          <div
+            className="playground-progress interactive"
+            onClick={seekPlayback}
+            role="slider"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(audioProgress * 100)}
+            aria-label="Playback progress"
+          >
             <div
               className="playground-progress-fill"
               style={{ width: `${audioProgress * 100}%` }}
@@ -443,9 +584,8 @@ export default function PlaygroundPage() {
             {data.paragraphs.map((paragraph, index) => {
               const activeParagraph =
                 currentUnitIndex === index;
-              const activeTokenStart = token?.start ?? -1;
-              const activeTokenEnd = token?.end ?? -1;
               const unit = units[index];
+              const paragraphTokens = getParagraphTokens(paragraph, data.tokens);
               const className = [
                 activeParagraph ? "active-paragraph" : "",
                 unit?.status ? `unit-${unit.status}` : "",
@@ -458,23 +598,49 @@ export default function PlaygroundPage() {
                   <span className="paragraph-status">
                     {unit?.id ?? `paragraph-${index + 1}`} · {unit?.status ?? "idle"}
                   </span>
-                  {data.tokens
-                    .filter(
-                      (token) => token.start >= paragraph.start && token.end <= paragraph.end,
-                    )
-                    .map((token) => {
-                      const isActive = token.start === activeTokenStart && token.end === activeTokenEnd;
+                  {paragraphTokens.map((token, tokenIndex) => {
+                    const wave = activeParagraph
+                      ? getWaveState(tokenIndex, paragraphTokens.length, audioProgress)
+                      : { emphasis: 0, distance: 99 };
+                    const visual = activeParagraph
+                      ? getTokenVisualState(wave.distance, wave.emphasis)
+                      : {
+                          opacity: 0.68,
+                          scale: 1,
+                          y: 0,
+                          color: "rgba(186, 181, 175, 0.88)",
+                          underlineOpacity: 0,
+                          underlineScale: 0.72,
+                          letterSpacing: "0em",
+                        };
 
-                      return (
-                        <span
-                          key={`${paragraph.index}-${token.index}`}
-                          className={isActive ? "active-token" : "token"}
-                        >
-                          {token.text}
-                          {token.end < paragraph.end ? " " : ""}
-                        </span>
-                      );
-                    })}
+                    return (
+                      <motion.span
+                        key={`${paragraph.index}-${token.index}`}
+                        className={activeParagraph ? "token-wave" : "token"}
+                        animate={{
+                          opacity: visual.opacity,
+                          scale: visual.scale,
+                          y: visual.y,
+                          color: visual.color,
+                          letterSpacing: visual.letterSpacing,
+                          boxShadow: `inset 0 -0.12em 0 rgba(255, 190, 140, ${visual.underlineOpacity})`,
+                        }}
+                        transition={{
+                          type: "spring",
+                          stiffness: 300,
+                          damping: 34,
+                          mass: 0.32,
+                        }}
+                        style={{
+                          transformOrigin: "50% 85%",
+                        }}
+                      >
+                        {token.text}
+                        {token.end < paragraph.end ? " " : ""}
+                      </motion.span>
+                    );
+                  })}
                 </p>
               );
             })}

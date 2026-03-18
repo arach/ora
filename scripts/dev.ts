@@ -1,8 +1,15 @@
+import { loadOraDevEnv } from "./env-file";
+
+const env = {
+  ...process.env,
+  ...loadOraDevEnv(),
+};
+
 const commands = [
   {
     name: "site",
     cwd: "site",
-    cmd: ["bun", "run", "dev"],
+    cmd: ["./node_modules/.bin/next", "dev", "--port", "3000"],
   },
   {
     name: "docs-site",
@@ -20,6 +27,7 @@ const children = commands.map((entry) =>
   Bun.spawn({
     cmd: entry.cmd,
     cwd: new URL(entry.cwd, `file://${process.cwd()}/`).pathname,
+    env,
     stdout: "inherit",
     stderr: "inherit",
     stdin: "inherit",

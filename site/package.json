@@ -3,12 +3,13 @@
   "private": true,
   "version": "0.0.1",
   "scripts": {
-    "dev": "next dev --port 3000",
-    "build": "next build",
-    "start": "next start --port 3000"
+    "dev": "./node_modules/.bin/next dev --port 3000",
+    "build": "./node_modules/.bin/next build",
+    "start": "./node_modules/.bin/next start --port 3000"
   },
   "dependencies": {
     "lucide-react": "^0.577.0",
+    "motion": "^12.38.0",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3"

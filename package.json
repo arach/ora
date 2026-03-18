@@ -27,6 +27,7 @@
     "example:openai": "bun run examples/run-openai-speech.ts",
     "example:page": "bun run examples/run-page.ts",
     "example:orchestrator": "bun run examples/run-orchestrator.ts",
+    "playground:dev": "bun run scripts/playground-dev.ts",
     "test": "bun test",
     "tools:install": "(cd ../og && bun install) && (cd ../dewey-codex && pnpm install)",
     "tools:build": "(cd ../og && bun run build) && (cd ../dewey-codex/packages/docs && pnpm build)",
