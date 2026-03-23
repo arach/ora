@@ -1,16 +1,16 @@
 export default {
   project: {
     name: 'ora',
-    tagline: 'TypeScript-first text-to-speech runtime primitives and playback tracking',
+    tagline: 'TypeScript-first text-to-speech runtime for providers, voices, and synthesis',
     type: 'npm-package',
     version: '0.0.1',
   },
 
   agent: {
     criticalContext: [
-      'Ora is a tracking layer for text-to-speech playback state, not a full synthesis client.',
-      'Boundary events are authoritative and estimated timelines are a fallback.',
-      'Segment tracking should stay generic so host apps can map paragraphs, sentences, or arbitrary ranges.',
+      'Ora is a text-to-speech runtime surface for provider integration, voice discovery, and synthesis.',
+      'Provider and voice metadata should stay stable so host apps can build selectors and adapters against Ora.',
+      'Playback tracking APIs are optional advanced surfaces, not the primary product position.',
     ],
 
     entryPoints: {
@@ -47,7 +47,7 @@ export default {
   },
 
   install: {
-    objective: 'Install Ora and wire tokenization, estimated timelines, and playback tracking into a TypeScript app.',
+    objective: 'Install Ora and wire provider-backed text-to-speech synthesis into a TypeScript app.',
     doneWhen: {
       command: 'bun run check',
       expectedOutput: 'completes successfully',
@@ -62,8 +62,8 @@ export default {
         command: 'bun add @arach/ora',
       },
       {
-        description: 'Import the tracker primitives',
-        command: 'import { OraPlaybackTracker, createEstimatedTimeline, tokenizeText } from "@arach/ora"',
+        description: 'Import the runtime primitives',
+        command: 'import { createOraRuntime, createOpenAiTtsProvider } from "@arach/ora"',
       },
       {
         description: 'Run your local typecheck',

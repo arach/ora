@@ -2,9 +2,9 @@
   "project": "ora",
   "name": "ora",
   "version": "0.0.1",
-  "tagline": "TypeScript-first text-to-speech runtime primitives and playback tracking",
+  "tagline": "TypeScript-first text-to-speech runtime for providers, voices, and synthesis",
   "generatedBy": "Dewey 0.3.4",
-  "generatedAt": "2026-03-17T23:25:22.179Z",
+  "generatedAt": "2026-03-23T15:50:32.444Z",
   "defaultPage": "overview",
   "generators": {
     "dewey": {
@@ -43,7 +43,7 @@
         {
           "id": "overview",
           "title": "Overview",
-          "description": "What Ora is for and where it fits in a TTS stack.",
+          "description": "What Ora is for and where it fits in a text-to-speech stack.",
           "slug": "/docs/overview",
           "order": 1,
           "sourcePath": "docs/overview.md",
@@ -52,7 +52,7 @@
         {
           "id": "quickstart",
           "title": "Quickstart",
-          "description": "Get tokenization, estimated timing, and playback snapshots running quickly.",
+          "description": "Get text-to-speech synthesis and voice discovery running quickly.",
           "slug": "/docs/quickstart",
           "order": 2,
           "sourcePath": "docs/quickstart.md",
@@ -80,7 +80,7 @@
     {
       "id": "overview",
       "title": "Overview",
-      "description": "What Ora is for and where it fits in a TTS stack.",
+      "description": "What Ora is for and where it fits in a text-to-speech stack.",
       "slug": "/docs/overview",
       "order": 1,
       "group": {
@@ -93,7 +93,7 @@
     {
       "id": "quickstart",
       "title": "Quickstart",
-      "description": "Get tokenization, estimated timing, and playback snapshots running quickly.",
+      "description": "Get text-to-speech synthesis and voice discovery running quickly.",
       "slug": "/docs/quickstart",
       "order": 2,
       "group": {
@@ -121,20 +121,20 @@
     {
       "id": "overview",
       "title": "Overview",
-      "description": "What Ora is for and where it fits in a TTS stack.",
-      "content": "Ora is a TypeScript-first library for text-to-speech runtimes, playback state, and text-follow tracking.\n\nIt focuses on the coordination layer that usually gets messy in speech UIs:\n\n- tokenizing text into stable character ranges\n- estimating token timelines when exact timestamps are unavailable\n- tracking current token and segment state from boundary events, provider marks, or the clock\n\nOra is intentionally small. It does not try to own your synthesis provider, caching layer, or audio player UI.\n\n## Correctness Ladder\n\nPlayback state should be resolved in this order:\n\n1. Exact runtime boundary events.\n2. Provider word marks or timestamps.\n3. Clock-driven estimated token timelines.\n\nOra currently implements all three of those surfaces.\n\n## Core Pieces\n\n- `tokenizeText` turns source text into stable token ranges.\n- `createEstimatedTimeline` converts those tokens into an approximate playback schedule.\n- `OraPlaybackTracker` merges boundary, provider, and clock updates into a single snapshot shape.\n\n## Intended Consumers\n\nOra fits best in apps that need visible reading state while audio is playing:\n\n- read-aloud interfaces\n- highlighted word or sentence playback\n- paragraph-follow views\n- editor or study tools with synchronized speech"
+      "description": "What Ora is for and where it fits in a text-to-speech stack.",
+      "content": "Ora is a TypeScript-first library for text-to-speech provider integration, normalized synthesis contracts, and stable voice discovery.\n\nIt focuses on the coordination layer that usually gets messy in speech apps:\n\n- provider registration and credential resolution\n- consistent voice catalogs across providers\n- a common request/synthesis response shape\n- optional streaming and event forwarding\n\nOra is intentionally small. It does not try to own your synthesis provider, caching layer, or audio player UI.\n\n## Boundary\n\nOra owns the runtime boundary.\n\nThat means Ora is responsible for:\n\n- provider registration and request normalization\n- the remote worker contract\n- runtime voice discovery\n- buffered/streaming synthesis and lifecycle events\n\nOra is not responsible for:\n\n- model-specific inference internals\n- Python or ML runtime setup\n- host-specific package troubleshooting\n\nModel servers such as MLX Audio sit behind Ora as backends. Ora can talk to them\nthrough a remote worker or provider adapter without absorbing inference complexity.\n\n## Core Pattern\n\nA practical integration is:\n\n- register providers once\n- bind a provider client from the runtime\n- list provider/voice capabilities\n- request synthesis by provider and voice\n- optionally consume stream events if available\n\n## Core Pieces\n\n- `createOraRuntime` creates a provider-aware runtime.\n- `runtime.provider(id)` returns a bound provider client.\n- `listProviderSummaries()` returns provider capability metadata.\n- `listVoices(providerId)` returns normalized voice metadata.\n- `synthesize(request)` returns a stable audio payload contract.\n- `stream(request)` exposes optional live audio/timing events.\n\n## Intended Consumers\n\nOra fits best in apps that need reliable speech output with provider interchangeability:\n\n- read-aloud interfaces\n- voice-selection UIs\n- TTS service adapters and provider routers\n- apps that need optional streaming playback hooks"
     },
     {
       "id": "quickstart",
       "title": "Quickstart",
-      "description": "Get tokenization, estimated timing, and playback snapshots running quickly.",
-      "content": "## Install\n\n```bash\nbun add @arach/ora\n```\n\n## Basic Flow\n\n```ts\nimport {\n  OraPlaybackTracker,\n  createEstimatedTimeline,\n  tokenizeText,\n} from \"@arach/ora\";\n\nconst text = \"Drop in a PDF and shape the reading surface from the file outward.\";\nconst tokens = tokenizeText(text);\nconst timeline = createEstimatedTimeline({\n  text,\n  tokens,\n  durationMs: 4200,\n});\n\nconst tracker = new OraPlaybackTracker({\n  text,\n  tokens,\n  timeline,\n  segments: [\n    { id: \"paragraph-1\", start: 0, end: text.length, label: \"Paragraph 1\" },\n  ],\n});\n\ntracker.updateFromBoundary(18, 950);\nconsole.log(tracker.snapshot());\n\ntracker.updateFromClock(2000);\nconsole.log(tracker.snapshot());\n```\n\n## Integration Pattern\n\n1. Tokenize once when the text changes.\n2. Create or hydrate a timed token timeline.\n3. Feed real boundary or provider-mark updates into the tracker when available.\n4. Fall back to `updateFromClock` during playback when exact timing is unavailable.\n5. Read `snapshot()` to drive word, sentence, or segment highlighting in the host UI.\n\n## Segment Ranges\n\nSegments are generic character ranges. They can represent:\n\n- paragraphs\n- sentences\n- captions\n- arbitrary host-app spans\n\nThat keeps Ora independent from any specific document model."
+      "description": "Get text-to-speech synthesis and voice discovery running quickly.",
+      "content": "## Install\n\n```bash\nbun add @arach/ora\n```\n\n## Scope\n\nOra is the coordination layer around speech synthesis, not a model runtime.\n\nIf you are running a local model elsewhere, the recommended shape is:\n\n1. run the model service on the host\n2. run an Ora worker in front of it\n3. connect with `createRemoteTtsProvider(...)`\n\nThat keeps Ora&apos;s API stable while model setup stays in backend-specific recipes.\n\n## Basic Flow\n\n```ts\nimport {\n  OraMemoryCacheStore,\n  createOraRuntime,\n  createOpenAiTtsProvider,\n} from \"@arach/ora\";\n\nconst runtime = createOraRuntime({\n  providers: [createOpenAiTtsProvider()],\n  cacheStore: new OraMemoryCacheStore(),\n});\n\nconst openai = runtime.provider(\"openai\");\nopenai.setCredentials({ apiKey: process.env.OPENAI_API_KEY ?? \"\" });\n\nconst voices = await openai.listVoices();\nconst response = await openai.synthesize({\n  text: \"Hello from Ora.\",\n  voice: voices[0]?.id ?? \"alloy\",\n  format: \"mp3\",\n});\n\nconst entries = await runtime.queryCache({ provider: \"openai\" });\n\nconsole.log(response.audio?.url, response.audio?.data, response.durationMs, entries.length);\n```\n\n## Streaming Flow\n\n```ts\nfor await (const event of openai.stream({\n  text: \"Hello from a stream.\",\n  preferences: {\n    priority: \"responsiveness\",\n  },\n})) {\n  if (event.type === \"audio\") {\n    // append event.audio\n  }\n}\n```\n\nFor remote deployments and backend recipes, see `docs/remote-worker.md`."
     },
     {
       "id": "api",
       "title": "API",
       "description": "Public types and runtime primitives exposed by Ora.",
-      "content": "## Public Exports\n\nOra exposes these primary surfaces:\n\n- `tokenizeText(text)`\n- `findTokenAtCharIndex(tokens, charIndex)`\n- `createEstimatedTimeline(options)`\n- `findTimedTokenAtTime(timeline, timeMs)`\n- `OraPlaybackTracker`\n\n## Key Types\n\n### `OraTextToken`\n\nRepresents a token with character offsets:\n\n- `index`\n- `text`\n- `start`\n- `end`\n- `isWord`\n\n### `OraTimedToken`\n\nExtends `OraTextToken` with timing information:\n\n- `startMs`\n- `endMs`\n- `weightMs`\n\n### `OraPlaybackSnapshot`\n\nCurrent derived playback state:\n\n- `source`\n- `currentTimeMs`\n- `currentCharIndex`\n- `progress`\n- `token`\n- `tokenIndex`\n- `segment`\n- `segmentIndex`\n\n## Tracker Update Sources\n\n### `updateFromBoundary(charIndex, timeMs?)`\n\nUse this when the runtime emits exact character boundary callbacks.\n\n### `updateFromProviderMark(charIndex, timeMs?)`\n\nUse this when the synthesis backend provides word or token marks.\n\n### `updateFromClock(timeMs)`\n\nUse this when no authoritative timing exists and you need estimated progress.\n\n### `updateFromProgress(progress)`\n\nUse this when the host app only knows a normalized playback fraction.\n\n## Design Constraints\n\n- boundary and provider updates should stay cheap and deterministic\n- estimated timing should stay configurable\n- token and segment selection should remain purely range-based"
+      "content": "## Public Exports\n\nOra exposes these primary surfaces:\n\n- `createOraRuntime(options)`\n- `createOpenAiTtsProvider(options)`\n- `createRemoteTtsProvider(options)`\n- `createHttpOraWorkerBackend(...)`\n- `createMockOraWorkerBackend(...)`\n- `createOraWorkerServer(...)`\n- `OraRuntime`\n- `OraProviderClient`\n- `OraAudioAsset`\n- `OraMemoryCacheStore`\n- `OraCacheEntry`\n- `OraCacheQuery`\n- `OraMemoryCredentialStore`\n- `OraVoice`\n- `OraSynthesisRequest`\n- `OraSynthesisResponse`\n\n## Core Types\n\n### `OraVoice`\n\nStructured voice metadata returned by provider catalogs:\n\n- `id`\n- `label`\n- `provider`\n- `locale`\n- `styles`\n- `tags`\n- `previewText`\n- `previewUrl`\n- `metadata`\n\n### `OraProviderSummary`\n\nRuntime-level provider metadata used by `listProviderSummaries()`:\n\n- `id`\n- `label`\n- `hasCredentials`\n- `capabilities`\n\n### `OraSynthesisResponse`\n\nNormalized synthesis return shape:\n\n- `audio`\n- `audioUrl`\n- `audioData`\n- `voice`\n- `format`\n- `durationMs`\n- `metadata`\n- `cached`\n\n## Runtime Primitives\n\n- `provider(id)`\n- `providerClients()`\n- `getCacheEntry(key)`\n- `queryCache(query)`\n- `deleteCacheEntry(key)`\n- `setCredentials(provider, credentials)`\n- `getCredentials(provider)`\n- `credentialProviders()`\n- `registerProvider(provider)`\n- `getProvider(id)`\n- `listProviders()`\n- `listProviderSummaries()`\n- `listVoices(providerId)`\n- `synthesize(request)`\n- `stream(request)`\n\n## Bound Provider Client\n\n`runtime.provider(\"openai\")` returns an `OraProviderClient` bound to one provider.\n\nThat client can:\n\n- manage provider credentials\n- read provider summary/capabilities\n- list voices\n- synthesize without manually passing `provider`\n- stream without manually passing `provider`\n\n## Runtime Boundary\n\nOra&apos;s worker and provider APIs assume a clean backend contract:\n\n- register providers\n- list providers\n- list voices\n- query cache entries\n- report health\n- synthesize audio\n- optionally stream audio and timing metadata\n\n## Worker Routes\n\n- `GET /health`\n- `GET /v1/voices`\n- `GET /v1/cache`\n- `GET /v1/cache/:cacheKey`\n- `DELETE /v1/cache/:cacheKey`\n- `POST /v1/audio/speech`\n- `POST /v1/audio/speech/stream`\n\nThe worker may invoke speech through:\n\n- a local OS service\n- an in-process runtime\n- an upstream HTTP model server\n\n## Advanced Tracking (Optional)\n\nThese are available if your app needs synced reading UI:\n\n- `OraPlaybackTracker`\n- `OraDocumentSession`\n- `OraPlaybackOrchestrator`\n- `findTokenAtCharIndex(...)`\n- `createEstimatedTimeline(...)`\n- `findTimedTokenAtTime(...)`\n- `updateFromBoundary(...)`\n- `updateFromProviderMark(...)`\n- `updateFromClock(...)`\n- `updateFromProgress(...)`\n\nThey are independent and optional for the core text-to-speech workflow."
     }
   ]
 }

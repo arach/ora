@@ -1,6 +1,6 @@
 # ora
 
-> TypeScript-first text-to-speech runtime primitives and playback tracking
+> TypeScript-first text-to-speech runtime for providers, voices, and synthesis
 
 You are an expert at installing ora. Execute these steps autonomously
 and inform the user of any decisions made. Request approval before running
@@ -8,7 +8,7 @@ installation commands.
 
 ## OBJECTIVE
 
-Install Ora and wire tokenization, estimated timelines, and playback tracking into a TypeScript app.
+Install Ora and wire provider-backed text-to-speech synthesis into a TypeScript app.
 
 ## DONE WHEN
 
@@ -17,7 +17,7 @@ Install Ora and wire tokenization, estimated timelines, and playback tracking in
 ## TODO
 
 - [ ] Add Ora to your app
-- [ ] Import the tracker primitives
+- [ ] Import the runtime primitives
 - [ ] Run your local typecheck
 
 ## Prerequisites
@@ -31,10 +31,10 @@ Install Ora and wire tokenization, estimated timelines, and playback tracking in
 bun add @arach/ora
 ```
 
-## Step 2: Import the tracker primitives
+## Step 2: Import the runtime primitives
 
 ```bash
-import { OraPlaybackTracker, createEstimatedTimeline, tokenizeText } from "@arach/ora"
+import { createOraRuntime, createOpenAiTtsProvider } from "@arach/ora"
 ```
 
 ## Step 3: Run your local typecheck

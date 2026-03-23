@@ -23,29 +23,26 @@ async function getDocsJson() {
 }
 
 const codeExample = `<span class="hl-kw">import</span> {
-  tokenizeText,
-  createEstimatedTimeline,
-  OraPlaybackTracker,
+  createOraRuntime,
+  createOpenAiTtsProvider,
 } <span class="hl-kw">from</span> <span class="hl-str">"@arach/ora"</span>
 
-<span class="hl-kw">const</span> tokens = <span class="hl-fn">tokenizeText</span>(text)
-<span class="hl-kw">const</span> timeline = <span class="hl-fn">createEstimatedTimeline</span>({
-  text, tokens, <span class="hl-prop">durationMs</span>: <span class="hl-num">4200</span>,
+<span class="hl-kw">const</span> runtime = <span class="hl-fn">createOraRuntime</span>({
+  providers: [<span class="hl-fn">createOpenAiTtsProvider</span>()],
+})
+runtime.<span class="hl-fn">setCredentials</span>(<span class="hl-str">"openai"</span>, { <span class="hl-prop">apiKey</span>: <span class="hl-str">process.env.OPENAI_API_KEY</span> })
+
+<span class="hl-kw">const</span> voices = <span class="hl-kw">await</span> runtime.<span class="hl-fn">listVoices</span>(<span class="hl-str">"openai"</span>)
+<span class="hl-kw">const</span> voice = voices[<span class="hl-num">0</span>]?.id <span class="hl-kw">??</span> <span class="hl-str">"alloy"</span>
+
+  <span class="hl-kw">const</span> response = <span class="hl-kw">await</span> runtime.<span class="hl-fn">synthesize</span>({
+  provider: <span class="hl-str">"openai"</span>,
+  text: <span class="hl-str">"Hello, this is Ora speaking."</span>,
+  voice,
+  <span class="hl-prop">format</span>: <span class="hl-str">"mp3"</span>,
 })
 
-<span class="hl-kw">const</span> tracker = <span class="hl-kw">new</span> <span class="hl-type">OraPlaybackTracker</span>({
-  text, tokens, timeline,
-  <span class="hl-prop">segments</span>: [{ <span class="hl-prop">id</span>: <span class="hl-str">"p-1"</span>, <span class="hl-prop">start</span>: <span class="hl-num">0</span>, <span class="hl-prop">end</span>: text.length }],
-})
-
-<span class="hl-cm">// Feed boundary events from your TTS provider</span>
-tracker.<span class="hl-fn">updateFromBoundary</span>(<span class="hl-num">18</span>, <span class="hl-num">950</span>)
-
-<span class="hl-cm">// Or fall back to clock-based estimation</span>
-tracker.<span class="hl-fn">updateFromClock</span>(<span class="hl-num">2000</span>)
-
-<span class="hl-cm">// Read the current playback state</span>
-<span class="hl-kw">const</span> snap = tracker.<span class="hl-fn">snapshot</span>()`;
+<span class="hl-cm">// response.audioData is ready for playback, or use response.audioUrl</span>`;
 
 export default async function HomePage() {
   const docs = await getDocsJson();
@@ -77,14 +74,15 @@ export default async function HomePage() {
           <div className="wrap">
             <p className="eyebrow">Text-to-Speech Runtime</p>
             <h1>
-              Know which word
+              Build text-to-speech
               <br />
-              is being spoken.
+              that just works.
             </h1>
             <p className="hero-sub">
-              Ora keeps your interface synchronized with speech output.
-              Tokenize, estimate timing, track playback, and front remote
-              model servers through a stable worker contract.
+              Ora gives you one consistent runtime for speech synthesis:
+              choose a provider, pick a voice, synthesize audio, and ship the result.
+              It handles credentials, response normalization, and runtime-level
+              provider abstraction so you can stay focused on UX.
             </p>
             <div className="hero-actions">
               <code className="install">bun add @arach/ora</code>
@@ -102,28 +100,27 @@ export default async function HomePage() {
           <div className="wrap">
             <div className="surface-panel">
               <p className="surface-text">
-                Drop in a PDF and <mark>shape</mark> the reading surface from
-                the file outward.
+                Pick a provider, request audio, and render speech output.
               </p>
               <div className="surface-bar">
                 <div className="surface-fill" />
               </div>
               <div className="surface-readout">
                 <div>
-                  <span>Token</span>
-                  <strong>shape</strong>
+                  <span>Voice</span>
+                  <strong>alloy</strong>
                 </div>
                 <div>
-                  <span>Segment</span>
-                  <strong>paragraph-1</strong>
+                  <span>Format</span>
+                  <strong>mp3</strong>
                 </div>
                 <div>
-                  <span>Elapsed</span>
-                  <strong>00:00.95</strong>
+                  <span>Response</span>
+                  <strong>audio bytes</strong>
                 </div>
                 <div>
                   <span>Source</span>
-                  <strong>boundary</strong>
+                  <strong>buffered</strong>
                 </div>
               </div>
             </div>
@@ -135,33 +132,30 @@ export default async function HomePage() {
             <div className="point">
               <span className="point-num">01</span>
               <div>
-                <h3>Provider timing is unreliable</h3>
+                <h3>Single API across providers</h3>
                 <p>
-                  Most TTS APIs don&apos;t expose word-level boundaries. When
-                  they do, the format varies. You can&apos;t build a UI on
-                  inconsistent signals.
+                  Use the same request and response shape for OpenAI, remote worker
+                  runtimes, and custom backends.
                 </p>
               </div>
             </div>
             <div className="point">
               <span className="point-num">02</span>
               <div>
-                <h3>Estimated fallback is hard</h3>
+                <h3>Reliable voice discovery</h3>
                 <p>
-                  Building a usable timing model from text shape and total
-                  duration requires careful tokenization and proportional time
-                  distribution.
+                  Ask a provider for its available voices and render a clean,
+                  consistent voice selector in your app.
                 </p>
               </div>
             </div>
             <div className="point">
               <span className="point-num">03</span>
               <div>
-                <h3>Inference should stay replaceable</h3>
+                <h3>Production-ready synthesis responses</h3>
                 <p>
-                  Ora should own the runtime boundary, not the internals of
-                  every model stack. Put MLX Audio, system speech, or another
-                  backend behind the worker and keep the client surface stable.
+                  Get normalized audio payloads, metadata, and timing-friendly
+                  defaults from one place, with optional streaming when you need it.
                 </p>
               </div>
             </div>

@@ -1,30 +1,31 @@
 ---
 title: Overview
-description: What Ora is for and where it fits in a TTS stack.
+description: What Ora is for and where it fits in a text-to-speech stack.
 order: 1
 group: Getting Started
 ---
 
-Ora is a TypeScript-first library for text-to-speech runtimes, playback state, and text-follow tracking.
+Ora is a TypeScript-first library for text-to-speech provider integration, normalized synthesis contracts, and stable voice discovery.
 
-It focuses on the coordination layer that usually gets messy in speech UIs:
+It focuses on the coordination layer that usually gets messy in speech apps:
 
-- tokenizing text into stable character ranges
-- estimating token timelines when exact timestamps are unavailable
-- tracking current token and segment state from boundary events, provider marks, or the clock
+- provider registration and credential resolution
+- consistent voice catalogs across providers
+- a common request/synthesis response shape
+- optional streaming and event forwarding
 
 Ora is intentionally small. It does not try to own your synthesis provider, caching layer, or audio player UI.
 
 ## Boundary
 
-Ora owns the runtime and playback coordination boundary.
+Ora owns the runtime boundary.
 
 That means Ora is responsible for:
 
 - provider registration and request normalization
 - the remote worker contract
-- playback tracking and orchestration
-- merging boundary, provider-mark, and clock-driven state
+- runtime voice discovery
+- buffered/streaming synthesis and lifecycle events
 
 Ora is not responsible for:
 
@@ -33,30 +34,32 @@ Ora is not responsible for:
 - host-specific package troubleshooting
 
 Model servers such as MLX Audio sit behind Ora as backends. Ora can talk to them
-through a remote worker or provider adapter, but it should not absorb their
-runtime complexity into the core library.
+through a remote worker or provider adapter without absorbing inference complexity.
 
-## Correctness Ladder
+## Core Pattern
 
-Playback state should be resolved in this order:
+A practical integration is:
 
-1. Exact runtime boundary events.
-2. Provider word marks or timestamps.
-3. Clock-driven estimated token timelines.
-
-Ora currently implements all three of those surfaces.
+- register providers once
+- bind a provider client from the runtime
+- list provider/voice capabilities
+- request synthesis by provider and voice
+- optionally consume stream events if available
 
 ## Core Pieces
 
-- `tokenizeText` turns source text into stable token ranges.
-- `createEstimatedTimeline` converts those tokens into an approximate playback schedule.
-- `OraPlaybackTracker` merges boundary, provider, and clock updates into a single snapshot shape.
+- `createOraRuntime` creates a provider-aware runtime.
+- `runtime.provider(id)` returns a bound provider client.
+- `listProviderSummaries()` returns provider capability metadata.
+- `listVoices(providerId)` returns normalized voice metadata.
+- `synthesize(request)` returns a stable audio payload contract.
+- `stream(request)` exposes optional live audio/timing events.
 
 ## Intended Consumers
 
-Ora fits best in apps that need visible reading state while audio is playing:
+Ora fits best in apps that need reliable speech output with provider interchangeability:
 
 - read-aloud interfaces
-- highlighted word or sentence playback
-- paragraph-follow views
-- editor or study tools with synchronized speech
+- voice-selection UIs
+- TTS service adapters and provider routers
+- apps that need optional streaming playback hooks

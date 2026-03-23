@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   OraBufferedInstrumentationSink,
+  OraMemoryCacheStore,
   OraMemoryCredentialStore,
   OraRuntime,
   createOraRuntime,
@@ -87,6 +88,9 @@ describe("OraRuntime", () => {
     expect(response.cacheKey).toBe("cache_123");
     expect(response.durationMs).toBe(1);
     expect(response.audioUrl).toBe("https://example.com/audio.mp3");
+    expect(response.audio).toEqual({
+      url: "https://example.com/audio.mp3",
+    });
     expect(sink.events.map((event) => event.name)).toEqual([
       "provider:registered",
       "synthesis:queued",
@@ -184,5 +188,192 @@ describe("OraRuntime", () => {
     expect(events.every((event) => event.provider === "gemini")).toBe(true);
     expect(sink.events.at(-1)?.name).toBe("synthesis:succeeded");
     expect(sink.events.at(-1)?.attributes?.mode).toBe("stream");
+  });
+
+  test("lists provider summaries and provider voice catalogs", async () => {
+    const runtime = new OraRuntime();
+
+    await runtime.registerProvider({
+      id: "openai",
+      label: "OpenAI",
+      listVoices() {
+        return [
+          {
+            id: "alloy",
+            label: "Alloy",
+            provider: "openai",
+            locale: "en-US",
+            tags: ["neutral"],
+          },
+        ];
+      },
+      async synthesize() {
+        throw new Error("not used");
+      },
+      async *stream() {
+        yield {
+          type: "completed" as const,
+        };
+      },
+    });
+
+    runtime.setCredentials("openai", { apiKey: "sk-test" });
+
+    expect(await runtime.listProviderSummaries()).toEqual([
+      {
+        id: "openai",
+        label: "OpenAI",
+        hasCredentials: true,
+        capabilities: {
+          buffered: true,
+          streaming: true,
+          voiceDiscovery: true,
+        },
+      },
+    ]);
+
+    expect(await runtime.listVoices("openai")).toEqual([
+      {
+        id: "alloy",
+        label: "Alloy",
+        provider: "openai",
+        locale: "en-US",
+        tags: ["neutral"],
+      },
+    ]);
+  });
+
+  test("binds provider operations through runtime.provider()", async () => {
+    const runtime = new OraRuntime();
+
+    await runtime.registerProvider({
+      id: "openai",
+      label: "OpenAI",
+      listVoices() {
+        return [{ id: "alloy", label: "Alloy", provider: "openai" }];
+      },
+      async synthesize(request) {
+        return {
+          requestId: "ignored",
+          cacheKey: "cache_provider_client",
+          provider: "openai",
+          voice: request.voice ?? "alloy",
+          rate: request.rate ?? 1,
+          format: request.format ?? "mp3",
+          cached: false,
+          audio: {
+            data: new Uint8Array([7, 8, 9]),
+            mimeType: "audio/mpeg",
+          },
+          durationMs: 42,
+          startedAt: "ignored",
+          completedAt: "ignored",
+        };
+      },
+    });
+
+    const openai = runtime.provider("openai");
+    openai.setCredentials({ apiKey: "sk-provider-client" });
+
+    expect(openai.summary()).toEqual({
+      id: "openai",
+      label: "OpenAI",
+      hasCredentials: true,
+      capabilities: {
+        buffered: true,
+        streaming: false,
+        voiceDiscovery: true,
+      },
+    });
+    expect(await openai.listVoices()).toEqual([
+      { id: "alloy", label: "Alloy", provider: "openai" },
+    ]);
+
+    const response = await openai.synthesize({
+      text: "hello from bound provider",
+      voice: "alloy",
+    });
+
+    expect(response.provider).toBe("openai");
+    expect(response.audioData).toEqual(new Uint8Array([7, 8, 9]));
+    expect(response.audio).toEqual({
+      data: new Uint8Array([7, 8, 9]),
+      mimeType: "audio/mpeg",
+    });
+    expect(openai.getCredentials()).toEqual({ apiKey: "sk-provider-client" });
+  });
+
+  test("caches buffered synthesis results and exposes cache queries", async () => {
+    let synthesizeCallCount = 0;
+    const runtime = new OraRuntime({
+      cacheStore: new OraMemoryCacheStore(),
+      createRequestId: (() => {
+        let count = 0;
+        return () => `req_cache_${++count}`;
+      })(),
+    });
+
+    await runtime.registerProvider({
+      id: "openai",
+      getCacheKey() {
+        return "cache_openai_hello";
+      },
+      async synthesize() {
+        synthesizeCallCount += 1;
+
+        return {
+          requestId: "ignored",
+          cacheKey: "provider_cache_ignored",
+          provider: "openai",
+          voice: "alloy",
+          rate: 1,
+          format: "mp3",
+          cached: false,
+          audio: {
+            data: new Uint8Array([1, 2, 3]),
+            mimeType: "audio/mpeg",
+          },
+          durationMs: 90,
+          startedAt: "ignored",
+          completedAt: "ignored",
+        };
+      },
+    });
+
+    const first = await runtime.synthesize({
+      provider: "openai",
+      text: "hello cache",
+    });
+    const second = await runtime.synthesize({
+      provider: "openai",
+      text: "hello cache",
+    });
+
+    expect(synthesizeCallCount).toBe(1);
+    expect(first.cached).toBe(false);
+    expect(second.cached).toBe(true);
+    expect(second.requestId).toBe("req_cache_2");
+    expect(second.audioData).toEqual(new Uint8Array([1, 2, 3]));
+
+    expect(await runtime.getCacheEntry("cache_openai_hello")).toEqual({
+      key: "cache_openai_hello",
+      provider: "openai",
+      voice: "alloy",
+      format: "mp3",
+      textHash: expect.any(String),
+      textLength: 11,
+      durationMs: 90,
+      createdAt: expect.any(String),
+      updatedAt: expect.any(String),
+      lastAccessedAt: expect.any(String),
+      hitCount: 1,
+      cached: true,
+      hasAudioData: true,
+      mimeType: "audio/mpeg",
+    });
+
+    expect(await runtime.queryCache({ provider: "openai" })).toHaveLength(1);
+    expect(await runtime.deleteCacheEntry("cache_openai_hello")).toBe(true);
+    expect(await runtime.queryCache({ provider: "openai" })).toHaveLength(0);
   });
 });

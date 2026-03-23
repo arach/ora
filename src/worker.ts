@@ -7,12 +7,19 @@ import { tmpdir } from "node:os";
 import { tokenizeText } from "./tokenize";
 import { createEstimatedTimeline } from "./timeline";
 import type {
+  OraAudioAsset,
   OraAudioFormat,
+  OraCacheQuery,
+  OraCacheStore,
+  OraCachedSynthesisRecord,
   OraHttpWorkerBackendOptions,
+  OraSynthesisResponse,
   OraWorkerBackend,
+  OraWorkerAudioAsset,
   OraWorkerHealth,
   OraWorkerStreamEvent,
   OraWorkerSynthesisRequest,
+  OraWorkerSynthesisResponse,
   OraWorkerSynthesisResult,
   OraWorkerVoice,
 } from "./types";
@@ -26,6 +33,7 @@ type OraWorkerConfig = {
 type OraWorkerServerOptions = {
   backend: OraWorkerBackend;
   token?: string;
+  cacheStore?: OraCacheStore;
 };
 
 export type OraWorkerServerHandle = {
@@ -56,6 +64,8 @@ function toBase64(bytes: Uint8Array) {
 
 function resolveMimeType(format: OraAudioFormat) {
   switch (format) {
+    case "aiff":
+      return "audio/aiff";
     case "wav":
       return "audio/wav";
     case "aac":
@@ -87,11 +97,15 @@ function createCacheKey(request: OraWorkerSynthesisRequest) {
         text: request.text,
         voice: request.voice ?? "default",
         rate: request.rate ?? 1,
-        format: request.format ?? "mp3",
+        format: request.format ?? request.plan?.format ?? "mp3",
         instructions: request.instructions ?? "",
       }),
     )
     .digest("hex");
+}
+
+function createTextHash(text: string) {
+  return createHash("sha256").update(text).digest("hex");
 }
 
 async function execFile(command: string, args: string[]) {
@@ -201,22 +215,138 @@ function normalizeResult(
   request: OraWorkerSynthesisRequest,
   result: OraWorkerSynthesisResult,
   requestId: string,
-) {
-  const format = request.format ?? "mp3";
-  const audioData = result.audioData;
+): OraWorkerSynthesisResponse {
+  const format = result.format ?? request.format ?? request.plan?.format ?? "mp3";
+  const audioData = result.audio?.data ?? result.audioData;
+  const audioUrl = result.audio?.url ?? result.audioUrl;
+  const mimeType = result.audio?.mimeType ?? result.mimeType ?? resolveMimeType(format);
+  const audio: OraWorkerAudioAsset | undefined =
+    audioData || audioUrl || mimeType
+      ? {
+          ...(audioData ? { base64: toBase64(audioData) } : {}),
+          ...(audioUrl ? { url: audioUrl } : {}),
+          ...(mimeType ? { mimeType } : {}),
+        }
+      : undefined;
 
   return {
     requestId,
     cacheKey: createCacheKey(request),
-    voice: request.voice ?? "default",
-    rate: request.rate ?? 1,
+    voice: result.voice ?? request.voice ?? "default",
+    rate: result.rate ?? request.rate ?? 1,
     format,
     cached: result.cached ?? false,
-    audioBase64: audioData ? toBase64(audioData) : undefined,
-    audioUrl: result.audioUrl,
-    mimeType: result.mimeType ?? resolveMimeType(format),
+    ...(audio ? { audio } : {}),
+    ...(audio?.base64 ? { audioBase64: audio.base64 } : {}),
+    ...(audio?.url ? { audioUrl: audio.url } : {}),
+    ...(audio?.mimeType ? { mimeType: audio.mimeType } : {}),
     durationMs: result.durationMs ?? 0,
     metadata: result.metadata,
+  };
+}
+
+function createRuntimeCacheRecord(
+  backendId: string,
+  request: OraWorkerSynthesisRequest,
+  result: OraWorkerSynthesisResult,
+  response: OraWorkerSynthesisResponse,
+): OraCachedSynthesisRecord {
+  const timestamp = new Date().toISOString();
+  const audioData = result.audio?.data ?? result.audioData;
+  const audioUrl = result.audio?.url ?? result.audioUrl;
+  const mimeType = result.audio?.mimeType ?? result.mimeType ?? response.mimeType;
+  const normalizedResponse: OraSynthesisResponse = {
+    requestId: response.requestId,
+    cacheKey: response.cacheKey,
+    provider: backendId,
+    voice: response.voice,
+    rate: response.rate,
+    format: response.format,
+    cached: false,
+    ...(audioData || audioUrl || mimeType
+      ? {
+          audio: {
+            ...(audioData ? { data: audioData } : {}),
+            ...(audioUrl ? { url: audioUrl } : {}),
+            ...(mimeType ? { mimeType } : {}),
+          },
+        }
+      : {}),
+    ...(audioData ? { audioData } : {}),
+    ...(audioUrl ? { audioUrl } : {}),
+    ...(mimeType ? { mimeType } : {}),
+    startedAt: timestamp,
+    completedAt: timestamp,
+    durationMs: response.durationMs,
+    metadata: response.metadata,
+  };
+
+  return {
+    entry: {
+      key: response.cacheKey,
+      provider: backendId,
+      voice: response.voice,
+      format: response.format,
+      textHash: createTextHash(request.text),
+      textLength: request.text.length,
+      durationMs: response.durationMs,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      lastAccessedAt: timestamp,
+      hitCount: 0,
+      cached: true,
+      hasAudioData: Boolean(audioData),
+      ...(audioUrl ? { audioUrl } : {}),
+      ...(mimeType ? { mimeType } : {}),
+      ...(response.metadata ? { metadata: response.metadata } : {}),
+    },
+    response: normalizedResponse,
+  };
+}
+
+function toWorkerResponseFromCache(
+  record: OraCachedSynthesisRecord,
+  requestId: string,
+): OraWorkerSynthesisResponse {
+  const audioData = record.response.audio?.data ?? record.response.audioData;
+  const audioUrl = record.response.audio?.url ?? record.response.audioUrl;
+  const mimeType = record.response.audio?.mimeType ?? record.response.mimeType;
+  const audio: OraWorkerAudioAsset | undefined =
+    audioData || audioUrl || mimeType
+      ? {
+          ...(audioData ? { base64: toBase64(audioData) } : {}),
+          ...(audioUrl ? { url: audioUrl } : {}),
+          ...(mimeType ? { mimeType } : {}),
+        }
+      : undefined;
+
+  return {
+    requestId,
+    cacheKey: record.entry.key,
+    voice: record.entry.voice,
+    rate: record.response.rate,
+    format: record.entry.format,
+    cached: true,
+    ...(audio ? { audio } : {}),
+    ...(audio?.base64 ? { audioBase64: audio.base64 } : {}),
+    ...(audio?.url ? { audioUrl: audio.url } : {}),
+    ...(audio?.mimeType ? { mimeType: audio.mimeType } : {}),
+    durationMs: record.entry.durationMs,
+    metadata: record.response.metadata,
+  };
+}
+
+function parseCacheQuery(url: URL): OraCacheQuery {
+  const limit = url.searchParams.get("limit");
+
+  return {
+    ...(url.searchParams.get("provider") ? { provider: url.searchParams.get("provider") ?? "" } : {}),
+    ...(url.searchParams.get("voice") ? { voice: url.searchParams.get("voice") ?? "" } : {}),
+    ...(url.searchParams.get("format")
+      ? { format: url.searchParams.get("format") as OraAudioFormat }
+      : {}),
+    ...(url.searchParams.get("textHash") ? { textHash: url.searchParams.get("textHash") ?? "" } : {}),
+    ...(limit ? { limit: Number(limit) } : {}),
   };
 }
 
@@ -224,11 +354,14 @@ export function createMockOraWorkerBackend(options: {
   provider?: string;
   voice?: string;
 } = {}): OraWorkerBackend {
+  const providerId = options.provider ?? "mock";
   const voiceId = options.voice ?? "mock-voice";
-  const voices: OraWorkerVoice[] = [{ id: voiceId, label: "Mock Voice" }];
+  const voices: OraWorkerVoice[] = [
+    { id: voiceId, label: "Mock Voice", provider: providerId, tags: ["mock"] },
+  ];
 
   return {
-    id: options.provider ?? "mock",
+    id: providerId,
     listVoices() {
       return voices;
     },
@@ -236,13 +369,19 @@ export function createMockOraWorkerBackend(options: {
       return { ok: true };
     },
     async synthesize(request) {
-      const format = request.format ?? "mp3";
+      const format = request.format ?? request.plan?.format ?? "mp3";
       const payload = new TextEncoder().encode(
         `ORA_MOCK_AUDIO:${request.voice ?? voiceId}:${format}:${request.text}`,
       );
 
       return {
+        audio: {
+          data: payload,
+          mimeType: resolveMimeType(format),
+        } satisfies OraAudioAsset,
         audioData: payload,
+        voice: request.voice ?? voiceId,
+        format,
         mimeType: resolveMimeType(format),
         durationMs: Math.max(320, request.text.length * 45),
         cached: false,
@@ -253,7 +392,7 @@ export function createMockOraWorkerBackend(options: {
     },
     async *stream(request) {
       const requestId = randomUUID();
-      const format = request.format ?? "mp3";
+      const format = request.format ?? request.plan?.format ?? "mp3";
       const payload = new TextEncoder().encode(
         `ORA_MOCK_STREAM:${request.voice ?? voiceId}:${format}:${request.text}`,
       );
@@ -326,6 +465,11 @@ export function createHttpOraWorkerBackend(
         {
           id: defaultVoice,
           label: `${defaultVoice} (${model})`,
+          provider: options.id ?? "http",
+          tags: ["default"],
+          metadata: {
+            model,
+          },
         },
       ];
     },
@@ -334,6 +478,7 @@ export function createHttpOraWorkerBackend(
       return { ok: response.ok };
     },
     async synthesize(request) {
+      const format = request.format ?? request.plan?.format ?? "wav";
       const response = await fetchImpl(`${baseUrl}/v1/audio/speech`, {
         method: "POST",
         headers: {
@@ -345,7 +490,7 @@ export function createHttpOraWorkerBackend(
           voice: request.voice ?? defaultVoice,
           lang_code: langCode,
           speed: request.rate ?? 1,
-          response_format: request.format ?? "wav",
+          response_format: format,
         }),
       });
 
@@ -359,7 +504,13 @@ export function createHttpOraWorkerBackend(
       const durationMs = await getAudioDurationMs(filePath);
 
       return {
+        audio: {
+          data: audioData,
+          mimeType: response.headers.get("content-type") ?? "audio/wav",
+        } satisfies OraAudioAsset,
         audioData,
+        voice: request.voice ?? defaultVoice,
+        format,
         mimeType: response.headers.get("content-type") ?? "audio/wav",
         durationMs,
         cached: false,
@@ -454,6 +605,12 @@ export function createSystemOraWorkerBackend(options: {
       return voices.map((voice) => ({
         id: voice.id,
         label: voice.locale ? `${voice.id} (${voice.locale})` : voice.id,
+        provider: "system",
+        locale: voice.locale?.replace("_", "-"),
+        previewText: voice.sample,
+        metadata: {
+          sample: voice.sample ?? null,
+        },
       }));
     },
     async health() {
@@ -468,7 +625,13 @@ export function createSystemOraWorkerBackend(options: {
       const durationMs = await getAudioDurationMs(filePath);
 
       return {
+        audio: {
+          data: audioData,
+          mimeType: "audio/aiff",
+        } satisfies OraAudioAsset,
         audioData,
+        voice,
+        format: "aiff",
         mimeType: "audio/aiff",
         durationMs,
         cached: false,
@@ -582,11 +745,71 @@ export function createOraWorkerServer(
         return;
       }
 
+      if (request.method === "GET" && url.pathname === "/v1/cache") {
+        if (!options.cacheStore) {
+          sendJson(response, 501, { error: "Cache is not configured for this worker." });
+          return;
+        }
+
+        sendJson(response, 200, {
+          entries: await options.cacheStore.list(parseCacheQuery(url)),
+        });
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname.startsWith("/v1/cache/")) {
+        if (!options.cacheStore) {
+          sendJson(response, 501, { error: "Cache is not configured for this worker." });
+          return;
+        }
+
+        const key = decodeURIComponent(url.pathname.slice("/v1/cache/".length));
+        const record = await options.cacheStore.peek(key);
+
+        if (!record) {
+          sendJson(response, 404, { error: "Cache entry not found." });
+          return;
+        }
+
+        sendJson(response, 200, record.entry);
+        return;
+      }
+
+      if (request.method === "DELETE" && url.pathname.startsWith("/v1/cache/")) {
+        if (!options.cacheStore) {
+          sendJson(response, 501, { error: "Cache is not configured for this worker." });
+          return;
+        }
+
+        const key = decodeURIComponent(url.pathname.slice("/v1/cache/".length));
+        sendJson(response, 200, { deleted: await options.cacheStore.delete(key) });
+        return;
+      }
+
       if (request.method === "POST" && url.pathname === "/v1/audio/speech") {
         const body = await readJsonBody(request);
+        const cacheKey = createCacheKey(body);
+
+        if (options.cacheStore) {
+          const cachedRecord = await options.cacheStore.get(cacheKey);
+
+          if (cachedRecord) {
+            sendJson(response, 200, toWorkerResponseFromCache(cachedRecord, randomUUID()));
+            return;
+          }
+        }
+
         const requestId = randomUUID();
         const result = await options.backend.synthesize(body);
-        sendJson(response, 200, normalizeResult(body, result, requestId));
+        const normalized = normalizeResult(body, result, requestId);
+
+        if (options.cacheStore) {
+          await options.cacheStore.set(
+            createRuntimeCacheRecord(options.backend.id, body, result, normalized),
+          );
+        }
+
+        sendJson(response, 200, normalized);
         return;
       }
 

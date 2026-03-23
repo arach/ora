@@ -9,84 +9,132 @@ group: Reference
 
 Ora exposes these primary surfaces:
 
-- `tokenizeText(text)`
-- `findTokenAtCharIndex(tokens, charIndex)`
-- `createEstimatedTimeline(options)`
-- `findTimedTokenAtTime(timeline, timeMs)`
-- `OraPlaybackTracker`
+- `createOraRuntime(options)`
+- `createOpenAiTtsProvider(options)`
 - `createRemoteTtsProvider(options)`
-- `createOraWorkerServer(options)`
+- `createHttpOraWorkerBackend(...)`
+- `createMockOraWorkerBackend(...)`
+- `createOraWorkerServer(...)`
+- `OraRuntime`
+- `OraProviderClient`
+- `OraAudioAsset`
+- `OraMemoryCacheStore`
+- `OraCacheEntry`
+- `OraCacheQuery`
+- `OraMemoryCredentialStore`
+- `OraVoice`
+- `OraSynthesisRequest`
+- `OraSynthesisResponse`
 
-## Key Types
+## Core Types
 
-### `OraTextToken`
+### `OraVoice`
 
-Represents a token with character offsets:
+Structured voice metadata returned by provider catalogs:
 
-- `index`
-- `text`
-- `start`
-- `end`
-- `isWord`
+- `id`
+- `label`
+- `provider`
+- `locale`
+- `styles`
+- `tags`
+- `previewText`
+- `previewUrl`
+- `metadata`
 
-### `OraTimedToken`
+### `OraProviderSummary`
 
-Extends `OraTextToken` with timing information:
+Runtime-level provider metadata used by `listProviderSummaries()`:
 
-- `startMs`
-- `endMs`
-- `weightMs`
+- `id`
+- `label`
+- `hasCredentials`
+- `capabilities`
 
-### `OraPlaybackSnapshot`
+### `OraSynthesisResponse`
 
-Current derived playback state:
+Normalized synthesis return shape:
 
-- `source`
-- `currentTimeMs`
-- `currentCharIndex`
-- `progress`
-- `token`
-- `tokenIndex`
-- `segment`
-- `segmentIndex`
+- `audio`
+- `audioUrl`
+- `audioData`
+- `voice`
+- `format`
+- `durationMs`
+- `metadata`
+- `cached`
 
-## Tracker Update Sources
+## Runtime Primitives
 
-### `updateFromBoundary(charIndex, timeMs?)`
+- `provider(id)`
+- `providerClients()`
+- `getCacheEntry(key)`
+- `queryCache(query)`
+- `deleteCacheEntry(key)`
+- `setCredentials(provider, credentials)`
+- `getCredentials(provider)`
+- `credentialProviders()`
+- `registerProvider(provider)`
+- `getProvider(id)`
+- `listProviders()`
+- `listProviderSummaries()`
+- `listVoices(providerId)`
+- `synthesize(request)`
+- `stream(request)`
 
-Use this when the runtime emits exact character boundary callbacks.
+## Bound Provider Client
 
-### `updateFromProviderMark(charIndex, timeMs?)`
+`runtime.provider("openai")` returns an `OraProviderClient` bound to one provider.
 
-Use this when the synthesis backend provides word or token marks.
+That client can:
 
-### `updateFromClock(timeMs)`
-
-Use this when no authoritative timing exists and you need estimated progress.
-
-### `updateFromProgress(progress)`
-
-Use this when the host app only knows a normalized playback fraction.
-
-## Design Constraints
-
-- boundary and provider updates should stay cheap and deterministic
-- estimated timing should stay configurable
-- token and segment selection should remain purely range-based
+- manage provider credentials
+- read provider summary/capabilities
+- list voices
+- synthesize without manually passing `provider`
+- stream without manually passing `provider`
 
 ## Runtime Boundary
 
 Ora&apos;s worker and provider APIs assume a clean backend contract:
 
+- register providers
+- list providers
 - list voices
+- query cache entries
 - report health
 - synthesize audio
-- optionally stream audio and timing events
+- optionally stream audio and timing metadata
 
-The backend may invoke speech through:
+## Worker Routes
+
+- `GET /health`
+- `GET /v1/voices`
+- `GET /v1/cache`
+- `GET /v1/cache/:cacheKey`
+- `DELETE /v1/cache/:cacheKey`
+- `POST /v1/audio/speech`
+- `POST /v1/audio/speech/stream`
+
+The worker may invoke speech through:
 
 - a local OS service
 - an in-process runtime
 - an upstream HTTP model server
 
-Ora does not require direct SDK integration with any specific model stack.
+## Advanced Tracking (Optional)
+
+These are available if your app needs synced reading UI:
+
+- `OraPlaybackTracker`
+- `OraDocumentSession`
+- `OraPlaybackOrchestrator`
+- `findTokenAtCharIndex(...)`
+- `createEstimatedTimeline(...)`
+- `findTimedTokenAtTime(...)`
+- `updateFromBoundary(...)`
+- `updateFromProviderMark(...)`
+- `updateFromClock(...)`
+- `updateFromProgress(...)`
+
+They are independent and optional for the core text-to-speech workflow.

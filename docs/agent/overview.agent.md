@@ -2,22 +2,17 @@
 
 ## Purpose
 
-Ora is a small TypeScript library for deriving playback state during text-to-speech.
+Ora is a small TypeScript runtime for text-to-speech provider abstraction and synthesis orchestration.
 
 ## Core Surfaces
 
-- `tokenizeText`
-- `createEstimatedTimeline`
-- `OraPlaybackTracker`
-
-## Correctness Order
-
-1. boundary events
-2. provider marks
-3. estimated clock updates
+- `createOraRuntime`
+- `synthesize` / `stream`
+- `listVoices`
+- `listProviderSummaries`
 
 ## Constraints
 
-- keep token character ranges stable
-- keep segment tracking generic
-- do not treat estimated timing as ground truth
+- Keep provider details isolated from app UX code.
+- Keep voice metadata deterministic and normalized.
+- Keep synthesis response contracts stable across providers.

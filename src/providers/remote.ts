@@ -1,13 +1,19 @@
+import { createDigest } from "../hash";
 import type {
+  OraAudioAsset,
   OraAudioFormat,
   OraRemoteTtsProviderOptions,
+  OraResolvedSynthesisPlan,
   OraSynthesisRequest,
+  OraSynthesisPreferences,
   OraSynthesisResponse,
   OraSynthesisStreamEvent,
   OraTtsProvider,
+  OraVoice,
   OraWorkerStreamEvent,
   OraWorkerSynthesisRequest,
   OraWorkerSynthesisResponse,
+  OraWorkerVoice,
 } from "../types";
 
 function getFetch(options: OraRemoteTtsProviderOptions) {
@@ -24,6 +30,8 @@ function getFetch(options: OraRemoteTtsProviderOptions) {
 
 function resolveMimeType(format: OraAudioFormat) {
   switch (format) {
+    case "aiff":
+      return "audio/aiff";
     case "wav":
       return "audio/wav";
     case "aac":
@@ -47,8 +55,33 @@ function encodeRequest(request: OraSynthesisRequest): OraWorkerSynthesisRequest 
     rate: request.rate,
     instructions: request.instructions,
     format: request.format,
+    preferences: request.preferences,
     metadata: request.metadata,
   };
+}
+
+function encodeWorkerRequest(
+  request: OraSynthesisRequest,
+  options: {
+    format: OraAudioFormat;
+    preferences?: OraSynthesisPreferences;
+    plan: OraResolvedSynthesisPlan;
+  },
+): OraWorkerSynthesisRequest {
+  return {
+    ...encodeRequest(request),
+    format: request.format ?? options.format,
+    preferences: options.preferences,
+    plan: options.plan,
+  };
+}
+
+async function createRemoteCacheKey(
+  providerId: string,
+  request: OraWorkerSynthesisRequest,
+) {
+  const digest = await createDigest(JSON.stringify(request));
+  return `${providerId}:${digest}`;
 }
 
 function decodeBase64(value: string) {
@@ -158,6 +191,26 @@ function toStreamEvent(event: OraWorkerStreamEvent): OraSynthesisStreamEvent {
   };
 }
 
+function decodeAudio(body: OraWorkerSynthesisResponse): OraAudioAsset | undefined {
+  const data = body.audio?.base64
+    ? decodeBase64(body.audio.base64)
+    : body.audioBase64
+      ? decodeBase64(body.audioBase64)
+      : undefined;
+  const url = body.audio?.url ?? body.audioUrl;
+  const mimeType = body.audio?.mimeType ?? body.mimeType ?? resolveMimeType(body.format);
+
+  if (!data && !url && !mimeType) {
+    return undefined;
+  }
+
+  return {
+    ...(data ? { data } : {}),
+    ...(url ? { url } : {}),
+    ...(mimeType ? { mimeType } : {}),
+  };
+}
+
 export function createRemoteTtsProvider(
   options: OraRemoteTtsProviderOptions,
 ): OraTtsProvider {
@@ -167,14 +220,53 @@ export function createRemoteTtsProvider(
 
   return {
     id: providerId,
+    label: String(providerId),
+    async listVoices(): Promise<OraVoice[]> {
+      const response = await fetchImpl(`${baseUrl}/v1/voices`, {
+        headers: {
+          ...(options.apiKey ? { Authorization: `Bearer ${options.apiKey}` } : {}),
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(await readErrorMessage(response));
+      }
+
+      const body = (await response.json()) as { voices?: OraWorkerVoice[] };
+
+      return (body.voices ?? []).map((voice) => ({
+        ...voice,
+        provider: providerId,
+        label: voice.label || voice.id,
+        metadata: {
+          ...voice.metadata,
+          upstreamProvider: voice.provider ?? null,
+        },
+      }));
+    },
+    getCacheKey(request, context) {
+      return createRemoteCacheKey(
+        providerId,
+        encodeWorkerRequest(request, {
+          format: context.plan.format,
+          preferences: request.preferences,
+          plan: context.plan,
+        }),
+      );
+    },
     async synthesize(request, context): Promise<OraSynthesisResponse> {
+      const encodedRequest = encodeWorkerRequest(request, {
+        format: context.plan.format,
+        preferences: request.preferences,
+        plan: context.plan,
+      });
       const response = await fetchImpl(`${baseUrl}/v1/audio/speech`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(options.apiKey ? { Authorization: `Bearer ${options.apiKey}` } : {}),
         },
-        body: JSON.stringify(encodeRequest(request)),
+        body: JSON.stringify(encodedRequest),
         signal: context.signal,
       });
 
@@ -183,6 +275,7 @@ export function createRemoteTtsProvider(
       }
 
       const body = (await response.json()) as OraWorkerSynthesisResponse;
+      const audio = decodeAudio(body);
 
       return {
         requestId: context.requestId,
@@ -192,9 +285,10 @@ export function createRemoteTtsProvider(
         rate: body.rate,
         format: body.format,
         cached: body.cached,
-        audioUrl: body.audioUrl ?? `${baseUrl}/v1/audio/speech/${body.requestId}`,
-        audioData: body.audioBase64 ? decodeBase64(body.audioBase64) : undefined,
-        mimeType: body.mimeType ?? resolveMimeType(body.format),
+        ...(audio ? { audio } : {}),
+        ...(audio?.url ? { audioUrl: audio.url } : {}),
+        ...(audio?.data ? { audioData: audio.data } : {}),
+        ...(audio?.mimeType ? { mimeType: audio.mimeType } : {}),
         startedAt: new Date().toISOString(),
         completedAt: new Date().toISOString(),
         durationMs: body.durationMs,
@@ -202,13 +296,18 @@ export function createRemoteTtsProvider(
       };
     },
     async *stream(request, context): AsyncIterable<OraSynthesisStreamEvent> {
+      const encodedRequest = encodeWorkerRequest(request, {
+        format: context.plan.format,
+        preferences: request.preferences,
+        plan: context.plan,
+      });
       const response = await fetchImpl(`${baseUrl}/v1/audio/speech/stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(options.apiKey ? { Authorization: `Bearer ${options.apiKey}` } : {}),
         },
-        body: JSON.stringify(encodeRequest(request)),
+        body: JSON.stringify(encodedRequest),
         signal: context.signal,
       });
 

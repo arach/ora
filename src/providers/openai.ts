@@ -5,6 +5,7 @@ import type {
   OraSynthesisResponse,
   OraSynthesisStreamEvent,
   OraTtsProvider,
+  OraVoice,
 } from "../types";
 
 export type OraOpenAiSpeechModel = "gpt-4o-mini-tts" | "tts-1" | "tts-1-hd";
@@ -15,7 +16,22 @@ export type OraOpenAiTtsProviderOptions = {
   defaultVoice?: string;
   fetch?: typeof fetch;
   model?: OraOpenAiSpeechModel;
+  voices?: OraVoice[];
 };
+
+const OPENAI_VOICES: OraVoice[] = [
+  { id: "alloy", label: "Alloy", provider: "openai", tags: ["neutral"], metadata: { source: "static-catalog" } },
+  { id: "ash", label: "Ash", provider: "openai", tags: ["conversational"], metadata: { source: "static-catalog" } },
+  { id: "ballad", label: "Ballad", provider: "openai", tags: ["warm"], metadata: { source: "static-catalog" } },
+  { id: "coral", label: "Coral", provider: "openai", tags: ["bright"], metadata: { source: "static-catalog" } },
+  { id: "echo", label: "Echo", provider: "openai", tags: ["clear"], metadata: { source: "static-catalog" } },
+  { id: "fable", label: "Fable", provider: "openai", tags: ["expressive"], metadata: { source: "static-catalog" } },
+  { id: "nova", label: "Nova", provider: "openai", tags: ["versatile"], metadata: { source: "static-catalog" } },
+  { id: "onyx", label: "Onyx", provider: "openai", tags: ["deep"], metadata: { source: "static-catalog" } },
+  { id: "sage", label: "Sage", provider: "openai", tags: ["calm"], metadata: { source: "static-catalog" } },
+  { id: "shimmer", label: "Shimmer", provider: "openai", tags: ["bright"], metadata: { source: "static-catalog" } },
+  { id: "verse", label: "Verse", provider: "openai", tags: ["narrative"], metadata: { source: "static-catalog" } },
+];
 
 type OpenAiSpeechRequest = {
   model: OraOpenAiSpeechModel;
@@ -68,6 +84,8 @@ function resolveApiKey(context: OraSynthesisContext, options: OraOpenAiTtsProvid
 
 function resolveMimeType(format: OraAudioFormat) {
   switch (format) {
+    case "aiff":
+      return "audio/aiff";
     case "wav":
       return "audio/wav";
     case "aac":
@@ -125,9 +143,21 @@ export function createOpenAiTtsProvider(
 ): OraTtsProvider {
   const fetchImpl = getFetch(options);
   const baseUrl = options.baseUrl ?? "https://api.openai.com/v1";
+  const voices = options.voices ?? OPENAI_VOICES;
 
   return {
     id: "openai",
+    label: "OpenAI",
+    async listVoices(): Promise<OraVoice[]> {
+      return voices.map((voice) => ({
+        ...voice,
+        provider: voice.provider ?? "openai",
+        label: voice.label || voice.id,
+      }));
+    },
+    getCacheKey(request, context) {
+      return createCacheKey(buildRequestBody(request, context, options));
+    },
     async synthesize(request, context): Promise<OraSynthesisResponse> {
       const apiKey = resolveApiKey(context, options);
 
@@ -161,7 +191,10 @@ export function createOpenAiTtsProvider(
         rate: body.speed ?? 1,
         format,
         cached: false,
-        audioUrl: `openai://audio/${context.requestId}`,
+        audio: {
+          data: audioData,
+          mimeType: resolveMimeType(format),
+        },
         audioData,
         mimeType: resolveMimeType(format),
         startedAt: new Date().toISOString(),
