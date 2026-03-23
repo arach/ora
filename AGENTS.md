@@ -174,6 +174,8 @@ Ora exposes these primary surfaces:
 - `createOraWorkerServer(...)`
 - `OraRuntime`
 - `OraProviderClient`
+- `OraProviderCatalog`
+- `OraCatalog`
 - `OraAudioAsset`
 - `OraMemoryCacheStore`
 - `OraCacheEntry`
@@ -208,6 +210,16 @@ Runtime-level provider metadata used by `listProviderSummaries()`:
 - `hasCredentials`
 - `capabilities`
 
+### `OraProviderCatalog`
+
+Provider summary plus voice inventory used by `runtime.catalog()` and `GET /v1/catalog`:
+
+- `id`
+- `label`
+- `hasCredentials`
+- `capabilities`
+- `voices`
+
 ### `OraSynthesisResponse`
 
 Normalized synthesis return shape:
@@ -225,6 +237,7 @@ Normalized synthesis return shape:
 
 - `provider(id)`
 - `providerClients()`
+- `catalog()`
 - `getCacheEntry(key)`
 - `queryCache(query)`
 - `deleteCacheEntry(key)`
@@ -266,6 +279,10 @@ Ora&apos;s worker and provider APIs assume a clean backend contract:
 ## Worker Routes
 
 - `GET /health`
+- `GET /v1/providers`
+- `GET /v1/providers/:provider`
+- `GET /v1/providers/:provider/voices`
+- `GET /v1/catalog`
 - `GET /v1/voices`
 - `GET /v1/cache`
 - `GET /v1/cache/:cacheKey`

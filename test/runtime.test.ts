@@ -243,6 +243,72 @@ describe("OraRuntime", () => {
     ]);
   });
 
+  test("builds a provider catalog for UI bootstrap", async () => {
+    const runtime = new OraRuntime();
+
+    await runtime.registerProvider({
+      id: "openai",
+      label: "OpenAI",
+      listVoices() {
+        return [
+          {
+            id: "alloy",
+            label: "Alloy",
+            provider: "openai",
+            locale: "en-US",
+          },
+        ];
+      },
+      async synthesize() {
+        throw new Error("not used");
+      },
+    });
+
+    await runtime.registerProvider({
+      id: "system",
+      label: "System",
+      async synthesize() {
+        throw new Error("not used");
+      },
+    });
+
+    runtime.setCredentials("openai", { apiKey: "sk-test" });
+
+    expect(await runtime.catalog()).toEqual({
+      providers: [
+        {
+          id: "openai",
+          label: "OpenAI",
+          hasCredentials: true,
+          capabilities: {
+            buffered: true,
+            streaming: false,
+            voiceDiscovery: true,
+          },
+          voices: [
+            {
+              id: "alloy",
+              label: "Alloy",
+              provider: "openai",
+              locale: "en-US",
+            },
+          ],
+        },
+        {
+          id: "system",
+          label: "System",
+          hasCredentials: false,
+          capabilities: {
+            buffered: true,
+            streaming: false,
+            voiceDiscovery: false,
+          },
+          voices: [],
+        },
+      ],
+    });
+  });
+
   test("binds provider operations through runtime.provider()", async () => {
     const runtime = new OraRuntime();
 

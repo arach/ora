@@ -7,12 +7,15 @@ import { tmpdir } from "node:os";
 import { tokenizeText } from "./tokenize";
 import { createEstimatedTimeline } from "./timeline";
 import type {
+  OraCatalog,
   OraAudioAsset,
   OraAudioFormat,
   OraCacheQuery,
   OraCacheStore,
   OraCachedSynthesisRecord,
   OraHttpWorkerBackendOptions,
+  OraProviderCatalog,
+  OraProviderSummary,
   OraSynthesisResponse,
   OraWorkerBackend,
   OraWorkerAudioAsset,
@@ -350,6 +353,40 @@ function parseCacheQuery(url: URL): OraCacheQuery {
   };
 }
 
+function getBackendLabel(backend: OraWorkerBackend) {
+  return backend.label ?? String(backend.id);
+}
+
+function getBackendCapabilities(backend: OraWorkerBackend) {
+  return {
+    buffered: true,
+    streaming: Boolean(backend.stream),
+    voiceDiscovery: true,
+  };
+}
+
+function getBackendSummary(backend: OraWorkerBackend): OraProviderSummary {
+  return {
+    id: backend.id,
+    label: getBackendLabel(backend),
+    // Worker callers should treat the exposed backend as ready to serve requests.
+    hasCredentials: true,
+    capabilities: getBackendCapabilities(backend),
+  };
+}
+
+async function getBackendCatalog(backend: OraWorkerBackend): Promise<OraCatalog> {
+  const voices = await backend.listVoices();
+  const provider: OraProviderCatalog = {
+    ...getBackendSummary(backend),
+    voices,
+  };
+
+  return {
+    providers: [provider],
+  };
+}
+
 export function createMockOraWorkerBackend(options: {
   provider?: string;
   voice?: string;
@@ -362,6 +399,7 @@ export function createMockOraWorkerBackend(options: {
 
   return {
     id: providerId,
+    label: "Mock",
     listVoices() {
       return voices;
     },
@@ -460,6 +498,7 @@ export function createHttpOraWorkerBackend(
 
   return {
     id: options.id ?? "http",
+    label: "HTTP",
     async listVoices() {
       return [
         {
@@ -600,6 +639,7 @@ export function createSystemOraWorkerBackend(options: {
 
   return {
     id: "system",
+    label: "System",
     async listVoices() {
       const voices = await listSystemVoices();
       return voices.map((voice) => ({
@@ -741,6 +781,45 @@ export function createOraWorkerServer(
       if (request.method === "GET" && url.pathname === "/v1/voices") {
         sendJson(response, 200, {
           voices: await options.backend.listVoices(),
+        });
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/v1/providers") {
+        sendJson(response, 200, {
+          providers: [getBackendSummary(options.backend)],
+        });
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/v1/catalog") {
+        sendJson(response, 200, await getBackendCatalog(options.backend));
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname.startsWith("/v1/providers/")) {
+        const suffix = url.pathname.slice("/v1/providers/".length);
+        const voicesSuffix = "/voices";
+        const providerId = decodeURIComponent(
+          suffix.endsWith(voicesSuffix)
+            ? suffix.slice(0, -voicesSuffix.length)
+            : suffix,
+        );
+
+        if (providerId !== options.backend.id) {
+          sendJson(response, 404, { error: "Provider not found." });
+          return;
+        }
+
+        if (suffix.endsWith(voicesSuffix)) {
+          sendJson(response, 200, {
+            voices: await options.backend.listVoices(),
+          });
+          return;
+        }
+
+        sendJson(response, 200, {
+          provider: getBackendSummary(options.backend),
         });
         return;
       }

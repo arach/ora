@@ -413,4 +413,129 @@ describe("createRemoteTtsProvider", () => {
 
     expect(deleteBody).toEqual({ deleted: true });
   });
+
+  test("exposes provider-router catalog routes over HTTP", async () => {
+    const server = createOraWorkerServer({
+      backend: createMockOraWorkerBackend({
+        provider: "mock",
+        voice: "mock-voice",
+      }),
+      token: "secret",
+    });
+    servers.push(server);
+
+    const { port } = await server.listen({ port: 4126 });
+    const headers = {
+      Authorization: "Bearer secret",
+    };
+
+    const providersResponse = await fetch(`http://127.0.0.1:${port}/v1/providers`, {
+      headers,
+    });
+    const providersBody = (await providersResponse.json()) as {
+      providers: Array<{
+        id: string;
+        label: string;
+        hasCredentials: boolean;
+        capabilities: { buffered: boolean; streaming: boolean; voiceDiscovery: boolean };
+      }>;
+    };
+
+    expect(providersBody).toEqual({
+      providers: [
+        {
+          id: "mock",
+          label: "Mock",
+          hasCredentials: true,
+          capabilities: {
+            buffered: true,
+            streaming: true,
+            voiceDiscovery: true,
+          },
+        },
+      ],
+    });
+
+    const providerResponse = await fetch(`http://127.0.0.1:${port}/v1/providers/mock`, {
+      headers,
+    });
+    const providerBody = (await providerResponse.json()) as {
+      provider: {
+        id: string;
+        label: string;
+        hasCredentials: boolean;
+      };
+    };
+
+    expect(providerBody).toEqual({
+      provider: {
+        id: "mock",
+        label: "Mock",
+        hasCredentials: true,
+        capabilities: {
+          buffered: true,
+          streaming: true,
+          voiceDiscovery: true,
+        },
+      },
+    });
+
+    const voicesResponse = await fetch(`http://127.0.0.1:${port}/v1/providers/mock/voices`, {
+      headers,
+    });
+    const voicesBody = (await voicesResponse.json()) as {
+      voices: Array<{ id: string; label: string; provider: string }>;
+    };
+
+    expect(voicesBody).toEqual({
+      voices: [
+        {
+          id: "mock-voice",
+          label: "Mock Voice",
+          provider: "mock",
+          tags: ["mock"],
+        },
+      ],
+    });
+
+    const catalogResponse = await fetch(`http://127.0.0.1:${port}/v1/catalog`, {
+      headers,
+    });
+    const catalogBody = (await catalogResponse.json()) as {
+      providers: Array<{
+        id: string;
+        label: string;
+        voices: Array<{ id: string; label: string; provider: string }>;
+      }>;
+    };
+
+    expect(catalogBody).toEqual({
+      providers: [
+        {
+          id: "mock",
+          label: "Mock",
+          hasCredentials: true,
+          capabilities: {
+            buffered: true,
+            streaming: true,
+            voiceDiscovery: true,
+          },
+          voices: [
+            {
+              id: "mock-voice",
+              label: "Mock Voice",
+              provider: "mock",
+              tags: ["mock"],
+            },
+          ],
+        },
+      ],
+    });
+
+    const missingProviderResponse = await fetch(`http://127.0.0.1:${port}/v1/providers/other`, {
+      headers,
+    });
+
+    expect(missingProviderResponse.status).toBe(404);
+  });
 });
