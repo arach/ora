@@ -1,6 +1,6 @@
 ---
 title: Quickstart
-description: Get tokenization, estimated timing, and playback snapshots running quickly.
+description: Get text-to-speech synthesis and voice discovery running quickly.
 order: 2
 group: Getting Started
 ---
@@ -11,54 +11,60 @@ group: Getting Started
 bun add @arach/ora
 ```
 
+## Scope
+
+Ora is the coordination layer around speech synthesis, not a model runtime.
+
+If you are running a local model elsewhere, the recommended shape is:
+
+1. run the model service on the host
+2. run an Ora worker in front of it
+3. connect with `createRemoteTtsProvider(...)`
+
+That keeps Ora&apos;s API stable while model setup stays in backend-specific recipes.
+
 ## Basic Flow
 
 ```ts
 import {
-  OraPlaybackTracker,
-  createEstimatedTimeline,
-  tokenizeText,
+  OraMemoryCacheStore,
+  createOraRuntime,
+  createOpenAiTtsProvider,
 } from "@arach/ora";
 
-const text = "Drop in a PDF and shape the reading surface from the file outward.";
-const tokens = tokenizeText(text);
-const timeline = createEstimatedTimeline({
-  text,
-  tokens,
-  durationMs: 4200,
+const runtime = createOraRuntime({
+  providers: [createOpenAiTtsProvider()],
+  cacheStore: new OraMemoryCacheStore(),
 });
 
-const tracker = new OraPlaybackTracker({
-  text,
-  tokens,
-  timeline,
-  segments: [
-    { id: "paragraph-1", start: 0, end: text.length, label: "Paragraph 1" },
-  ],
+const openai = runtime.provider("openai");
+openai.setCredentials({ apiKey: process.env.OPENAI_API_KEY ?? "" });
+
+const voices = await openai.listVoices();
+const response = await openai.synthesize({
+  text: "Hello from Ora.",
+  voice: voices[0]?.id ?? "alloy",
+  format: "mp3",
 });
 
-tracker.updateFromBoundary(18, 950);
-console.log(tracker.snapshot());
+const entries = await runtime.queryCache({ provider: "openai" });
 
-tracker.updateFromClock(2000);
-console.log(tracker.snapshot());
+console.log(response.audio?.url, response.audio?.data, response.durationMs, entries.length);
 ```
 
-## Integration Pattern
+## Streaming Flow
 
-1. Tokenize once when the text changes.
-2. Create or hydrate a timed token timeline.
-3. Feed real boundary or provider-mark updates into the tracker when available.
-4. Fall back to `updateFromClock` during playback when exact timing is unavailable.
-5. Read `snapshot()` to drive word, sentence, or segment highlighting in the host UI.
+```ts
+for await (const event of openai.stream({
+  text: "Hello from a stream.",
+  preferences: {
+    priority: "responsiveness",
+  },
+})) {
+  if (event.type === "audio") {
+    // append event.audio
+  }
+}
+```
 
-## Segment Ranges
-
-Segments are generic character ranges. They can represent:
-
-- paragraphs
-- sentences
-- captions
-- arbitrary host-app spans
-
-That keeps Ora independent from any specific document model.
+For remote deployments and backend recipes, see `docs/remote-worker.md`.

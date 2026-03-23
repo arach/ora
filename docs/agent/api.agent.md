@@ -2,12 +2,18 @@
 
 ## Public API
 
-- `tokenizeText`
-- `findTokenAtCharIndex`
-- `createEstimatedTimeline`
-- `findTimedTokenAtTime`
-- `OraPlaybackTracker`
+- `createOraRuntime`
+- `createOpenAiTtsProvider`
+- `createRemoteTtsProvider`
+- `createOraWorkerServer`
+- `setCredentials`
+- `listVoices`
+- `listProviderSummaries`
+- `synthesize`
+- `stream`
 
-## Main Snapshot Contract
+## Notes
 
-`OraPlaybackSnapshot` is the value to hand to UI state because it consolidates time, char index, token, segment, and normalized progress.
+- `synthesize` should return a normalized payload that works across providers.
+- `listVoices` should always include a stable `id` and UI-friendly `label`.
+- `stream` is optional and only required when provider supports it.

@@ -1,6 +1,6 @@
 # ora
 
-> TypeScript-first text-to-speech runtime primitives and playback tracking
+> TypeScript-first text-to-speech runtime for providers, voices, and synthesis
 
 ## Documentation
 
@@ -10,7 +10,7 @@
 
 ## Overview
 
-Ora is a TypeScript-first library for text-to-speech runtimes, playback state, and text-follow tracking.
+Ora is a TypeScript-first library for text-to-speech provider integration, normalized synthesis contracts, and stable voice discovery.
 
 ## Quickstart
 

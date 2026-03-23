@@ -2,6 +2,20 @@ import { describe, expect, test } from "bun:test";
 import { createOpenAiTtsProvider } from "../src";
 
 describe("createOpenAiTtsProvider", () => {
+  test("lists a stable OpenAI voice catalog", async () => {
+    const provider = createOpenAiTtsProvider({
+      apiKey: "sk-test",
+    });
+
+    const voices = await provider.listVoices?.();
+
+    expect(voices?.some((voice) => voice.id === "alloy")).toBe(true);
+    expect(voices?.every((voice) => voice.provider === "openai")).toBe(true);
+    expect(voices?.every((voice) => typeof voice.label === "string" && voice.label.length > 0)).toBe(
+      true,
+    );
+  });
+
   test("uses quality and responsiveness tradeoffs to pick OpenAI speech models", async () => {
     const calls: Array<{ body: Record<string, unknown> }> = [];
     const provider = createOpenAiTtsProvider({
@@ -94,7 +108,12 @@ describe("createOpenAiTtsProvider", () => {
     );
 
     expect(response.metadata?.model).toBe("gpt-4o-mini-tts");
+    expect(response.audio).toEqual({
+      data: new Uint8Array([4, 5, 6]),
+      mimeType: "audio/wav",
+    });
     expect(response.audioData).toEqual(new Uint8Array([4, 5, 6]));
+    expect(response.audioUrl).toBeUndefined();
     expect(response.mimeType).toBe("audio/wav");
   });
 });

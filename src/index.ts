@@ -1,5 +1,10 @@
 export type {
+  OraAudioAsset,
   OraAudioFormat,
+  OraCacheEntry,
+  OraCacheQuery,
+  OraCacheStore,
+  OraCachedSynthesisRecord,
   OraCredentialMap,
   OraCredentialStore,
   OraCredentialValue,
@@ -7,13 +12,19 @@ export type {
   OraInstrumentationEvent,
   OraInstrumentationEventName,
   OraInstrumentationSink,
+  OraMetadataMap,
+  OraMetadataValue,
   OraPlaybackSegment,
   OraPlaybackSnapshot,
   OraPlaybackSource,
   OraPlaybackOrchestratorOptions,
   OraPlaybackOrchestratorSnapshot,
   OraPlaybackTrackerOptions,
+  OraProviderClient,
+  OraProviderCapabilities,
   OraProviderId,
+  OraProviderRequest,
+  OraProviderSummary,
   OraRuntimeOptions,
   OraDocumentSessionOptions,
   OraDocumentSessionSnapshot,
@@ -34,7 +45,9 @@ export type {
   OraTextToken,
   OraTimedToken,
   OraTtsProvider,
+  OraVoice,
   OraWorkerBackend,
+  OraWorkerAudioAsset,
   OraHttpWorkerBackendOptions,
   OraWorkerHealth,
   OraWorkerStreamEvent,
@@ -43,6 +56,7 @@ export type {
   OraWorkerSynthesisResult,
   OraWorkerVoice,
 } from "./types";
+export { OraMemoryCacheStore } from "./cache";
 export { OraMemoryCredentialStore } from "./credentials";
 export { OraBufferedInstrumentationSink } from "./instrumentation";
 export { oraCorpus, findCorpusEntryByKind } from "./corpus";

@@ -6,15 +6,15 @@ This is the right shape when:
 
 - your main machine should stay light
 - you want to keep a local model warm on a Mac Mini or similar host
-- you want Ora to stay responsible for playback state while a remote node owns inference
+- you want Ora to own voice/speech orchestration while a remote node owns inference
 
 ## What Ora Owns
 
-Ora owns the client and tracking surface:
+Ora owns the client and synthesis surface:
 
 - `createRemoteTtsProvider(...)`
 - request normalization
-- playback tracking and orchestration
+- synthesis orchestration and voice discovery
 - remote worker protocol
 
 The worker owns:
@@ -30,6 +30,9 @@ The built-in worker currently exposes:
 
 - `GET /health`
 - `GET /v1/voices`
+- `GET /v1/cache`
+- `GET /v1/cache/:cacheKey`
+- `DELETE /v1/cache/:cacheKey`
 - `POST /v1/audio/speech`
 - `POST /v1/audio/speech/stream`
 
@@ -60,6 +63,9 @@ const runtime = createOraRuntime({
     }),
   ],
 });
+
+const providers = await runtime.listProviderSummaries();
+const voices = await runtime.listVoices("mini");
 ```
 
 ## Deployment Model

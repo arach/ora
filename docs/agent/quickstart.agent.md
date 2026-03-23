@@ -2,12 +2,9 @@
 
 ## Setup Loop
 
-1. tokenize the text
-2. create a timeline
-3. construct `OraPlaybackTracker`
-4. feed boundary or provider marks when available
-5. fall back to `updateFromClock`
-
-## Best Use
-
-Drive highlighting and active segment state in host UIs.
+1. instantiate `OraRuntime`
+2. `registerProvider(...)`
+3. `setCredentials(...)`
+4. `await listVoices(provider)` for selector population
+5. `await synthesize(...)` for immediate playback
+6. optionally use `stream(...)` for progressive playback

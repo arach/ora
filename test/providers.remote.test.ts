@@ -3,6 +3,7 @@ import fs from "node:fs";
 import { createServer } from "node:http";
 import {
   createHttpOraWorkerBackend,
+  OraMemoryCacheStore,
   createOraRuntime,
   createRemoteTtsProvider,
   createMockOraWorkerBackend,
@@ -23,6 +24,103 @@ afterEach(async () => {
 });
 
 describe("createRemoteTtsProvider", () => {
+  test("forwards preferences and resolved plans to the worker contract", async () => {
+    const requests: Array<Record<string, unknown>> = [];
+    const runtime = createOraRuntime({
+      providers: [
+        createRemoteTtsProvider({
+          id: "mini",
+          baseUrl: "http://ora-worker.test",
+          fetch: async (_input, init) => {
+            requests.push(JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>);
+
+            return new Response(
+              JSON.stringify({
+                requestId: "worker_req_1",
+                cacheKey: "worker_cache_1",
+                voice: "alloy",
+                rate: 1,
+                format: "mp3",
+                cached: false,
+                audio: {
+                  base64: Buffer.from([1, 2, 3]).toString("base64"),
+                  mimeType: "audio/mpeg",
+                },
+                durationMs: 120,
+              }),
+              {
+                status: 200,
+                headers: {
+                  "Content-Type": "application/json",
+                },
+              },
+            );
+          },
+        }),
+      ],
+    });
+
+    const response = await runtime.synthesize({
+      provider: "mini",
+      text: "plan me",
+      preferences: {
+        priority: "quality",
+      },
+    });
+
+    expect(requests[0]).toEqual({
+      text: "plan me",
+      format: "mp3",
+      preferences: {
+        priority: "quality",
+      },
+      plan: {
+        priority: "quality",
+        delivery: "buffered",
+        format: "mp3",
+        bitrateKbps: 192,
+        sampleRateHz: 48_000,
+        cacheStrategy: "full-audio",
+      },
+    });
+    expect(response.audio).toEqual({
+      data: new Uint8Array([1, 2, 3]),
+      mimeType: "audio/mpeg",
+    });
+    expect(response.audioUrl).toBeUndefined();
+  });
+
+  test("lists voices through the worker", async () => {
+    const server = createOraWorkerServer({
+      backend: createMockOraWorkerBackend(),
+      token: "secret",
+    });
+    servers.push(server);
+
+    const { port } = await server.listen({ port: 4119 });
+    const runtime = createOraRuntime({
+      providers: [
+        createRemoteTtsProvider({
+          id: "mini",
+          baseUrl: `http://127.0.0.1:${port}`,
+          apiKey: "secret",
+        }),
+      ],
+    });
+
+    expect(await runtime.listVoices("mini")).toEqual([
+      {
+        id: "mock-voice",
+        label: "Mock Voice",
+        provider: "mini",
+        tags: ["mock"],
+        metadata: {
+          upstreamProvider: "mock",
+        },
+      },
+    ]);
+  });
+
   test("synthesizes buffered audio through the worker", async () => {
     const server = createOraWorkerServer({
       backend: createMockOraWorkerBackend(),
@@ -51,6 +149,8 @@ describe("createRemoteTtsProvider", () => {
     expect(response.provider).toBe("mini");
     expect(response.voice).toBe("operator");
     expect(response.audioData).toBeInstanceOf(Uint8Array);
+    expect(response.audio?.data).toBeInstanceOf(Uint8Array);
+    expect(response.audioUrl).toBeUndefined();
     expect(new TextDecoder().decode(response.audioData)).toContain("Hello from the Mac mini");
     expect(response.mimeType).toBe("audio/wav");
   });
@@ -145,5 +245,172 @@ describe("createRemoteTtsProvider", () => {
 
     expect(response.metadata?.backend).toBe("http");
     expect(response.audioData).toEqual(new Uint8Array(fixture));
+  });
+
+  test("preserves AIFF when the worker backend emits AIFF audio", async () => {
+    const server = createOraWorkerServer({
+      backend: {
+        id: "system",
+        listVoices() {
+          return [{ id: "Samantha", label: "Samantha", provider: "system" }];
+        },
+        health() {
+          return { ok: true };
+        },
+        async synthesize() {
+          return {
+            audio: {
+              data: new Uint8Array([9, 8, 7]),
+              mimeType: "audio/aiff",
+            },
+            voice: "Samantha",
+            format: "aiff",
+            durationMs: 240,
+            cached: false,
+          };
+        },
+      },
+      token: "secret",
+    });
+    servers.push(server);
+
+    const { port } = await server.listen({ port: 4124 });
+    const runtime = createOraRuntime({
+      providers: [
+        createRemoteTtsProvider({
+          id: "mini",
+          baseUrl: `http://127.0.0.1:${port}`,
+          apiKey: "secret",
+        }),
+      ],
+    });
+
+    const response = await runtime.synthesize({
+      provider: "mini",
+      text: "system voice",
+      format: "wav",
+    });
+
+    expect(response.format).toBe("aiff");
+    expect(response.mimeType).toBe("audio/aiff");
+    expect(response.audio).toEqual({
+      data: new Uint8Array([9, 8, 7]),
+      mimeType: "audio/aiff",
+    });
+    expect(response.audioData).toEqual(new Uint8Array([9, 8, 7]));
+  });
+
+  test("queries and deletes worker cache entries over HTTP", async () => {
+    let synthesizeCallCount = 0;
+    const server = createOraWorkerServer({
+      backend: {
+        id: "mock",
+        listVoices() {
+          return [{ id: "mock-voice", label: "Mock Voice", provider: "mock" }];
+        },
+        health() {
+          return { ok: true };
+        },
+        async synthesize() {
+          synthesizeCallCount += 1;
+          return {
+            audio: {
+              data: new Uint8Array([1, 2, 3, 4]),
+              mimeType: "audio/mpeg",
+            },
+            voice: "mock-voice",
+            format: "mp3",
+            durationMs: 180,
+            cached: false,
+          };
+        },
+      },
+      token: "secret",
+      cacheStore: new OraMemoryCacheStore(),
+    });
+    servers.push(server);
+
+    const { port } = await server.listen({ port: 4125 });
+    const headers = {
+      Authorization: "Bearer secret",
+      "Content-Type": "application/json",
+    };
+    const synthesizeBody = {
+      text: "cache me",
+      format: "mp3",
+    };
+
+    const firstResponse = await fetch(`http://127.0.0.1:${port}/v1/audio/speech`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(synthesizeBody),
+    });
+    const first = await firstResponse.json();
+
+    const secondResponse = await fetch(`http://127.0.0.1:${port}/v1/audio/speech`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(synthesizeBody),
+    });
+    const second = await secondResponse.json();
+
+    expect(synthesizeCallCount).toBe(1);
+    expect(first.cached).toBe(false);
+    expect(second.cached).toBe(true);
+
+    const listResponse = await fetch(`http://127.0.0.1:${port}/v1/cache?provider=mock`, {
+      headers: {
+        Authorization: "Bearer secret",
+      },
+    });
+    const listBody = (await listResponse.json()) as {
+      entries: Array<{ key: string; provider: string; hitCount: number; textLength: number }>;
+    };
+
+    expect(listBody.entries).toEqual([
+      expect.objectContaining({
+        key: first.cacheKey,
+        provider: "mock",
+        hitCount: 1,
+        textLength: 8,
+      }),
+    ]);
+
+    const entryResponse = await fetch(
+      `http://127.0.0.1:${port}/v1/cache/${encodeURIComponent(first.cacheKey)}`,
+      {
+        headers: {
+          Authorization: "Bearer secret",
+        },
+      },
+    );
+    const entry = (await entryResponse.json()) as {
+      key: string;
+      format: string;
+      mimeType: string;
+      hasAudioData: boolean;
+    };
+
+    expect(entry).toEqual(
+      expect.objectContaining({
+        key: first.cacheKey,
+        format: "mp3",
+        mimeType: "audio/mpeg",
+        hasAudioData: true,
+      }),
+    );
+
+    const deleteResponse = await fetch(
+      `http://127.0.0.1:${port}/v1/cache/${encodeURIComponent(first.cacheKey)}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: "Bearer secret",
+        },
+      },
+    );
+    const deleteBody = (await deleteResponse.json()) as { deleted: boolean };
+
+    expect(deleteBody).toEqual({ deleted: true });
   });
 });

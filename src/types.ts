@@ -1,10 +1,14 @@
 export type OraProviderId = "openai" | "elevenlabs" | "system" | (string & {});
 
-export type OraAudioFormat = "mp3" | "wav" | "aac" | "opus";
+export type OraAudioFormat = "mp3" | "wav" | "aac" | "opus" | "aiff";
 
 export type OraCredentialValue = string;
 
 export type OraCredentialMap = Record<string, OraCredentialValue>;
+
+export type OraMetadataValue = string | number | boolean | null;
+
+export type OraMetadataMap = Record<string, OraMetadataValue>;
 
 export type OraSynthesisPriority = "quality" | "balanced" | "responsiveness";
 
@@ -36,7 +40,45 @@ export type OraSynthesisRequest = {
   instructions?: string;
   format?: OraAudioFormat;
   preferences?: OraSynthesisPreferences;
-  metadata?: Record<string, string | number | boolean | null>;
+  metadata?: OraMetadataMap;
+};
+
+export type OraAudioAsset = {
+  data?: Uint8Array;
+  url?: string;
+  mimeType?: string;
+};
+
+export type OraCacheEntry = {
+  key: string;
+  provider: OraProviderId | string;
+  voice: string;
+  format: OraAudioFormat;
+  textHash: string;
+  textLength: number;
+  durationMs: number;
+  createdAt: string;
+  updatedAt: string;
+  lastAccessedAt: string;
+  hitCount: number;
+  cached: boolean;
+  hasAudioData: boolean;
+  audioUrl?: string;
+  mimeType?: string;
+  metadata?: OraMetadataMap;
+};
+
+export type OraCachedSynthesisRecord = {
+  entry: OraCacheEntry;
+  response: OraSynthesisResponse;
+};
+
+export type OraCacheQuery = {
+  provider?: OraProviderId | string;
+  voice?: string;
+  format?: OraAudioFormat;
+  textHash?: string;
+  limit?: number;
 };
 
 export type OraSynthesisResponse = {
@@ -47,13 +89,26 @@ export type OraSynthesisResponse = {
   rate: number;
   format: OraAudioFormat;
   cached: boolean;
-  audioUrl: string;
+  audio?: OraAudioAsset;
+  audioUrl?: string;
   audioData?: Uint8Array;
   mimeType?: string;
   startedAt: string;
   completedAt: string;
   durationMs: number;
-  metadata?: Record<string, string | number | boolean | null>;
+  metadata?: OraMetadataMap;
+};
+
+export type OraVoice = {
+  id: string;
+  label: string;
+  provider: OraProviderId;
+  locale?: string;
+  styles?: string[];
+  tags?: string[];
+  previewText?: string;
+  previewUrl?: string;
+  metadata?: OraMetadataMap;
 };
 
 export type OraTextToken = {
@@ -122,7 +177,7 @@ export type OraDocumentSessionOptions = {
   rate?: number;
   instructions?: string;
   preferences?: OraSynthesisPreferences;
-  metadata?: Record<string, string | number | boolean | null>;
+  metadata?: OraMetadataMap;
 };
 
 export type OraSynthesisUnit = {
@@ -135,7 +190,7 @@ export type OraSynthesisUnit = {
   rate?: number;
   instructions?: string;
   preferences?: OraSynthesisPreferences;
-  metadata?: Record<string, string | number | boolean | null>;
+  metadata?: OraMetadataMap;
   status: OraSynthesisUnitStatus;
   attemptCount: number;
   audioUrl?: string;
@@ -192,7 +247,7 @@ export type OraInstrumentationEvent = {
   timestamp: string;
   provider?: OraProviderId;
   requestId?: string;
-  attributes?: Record<string, string | number | boolean | null>;
+  attributes?: OraMetadataMap;
   error?: {
     name: string;
     message: string;
@@ -209,6 +264,14 @@ export type OraCredentialStore = {
   delete(provider: OraProviderId): boolean;
   has(provider: OraProviderId): boolean;
   providers(): OraProviderId[];
+};
+
+export type OraCacheStore = {
+  get(key: string): Promise<OraCachedSynthesisRecord | undefined> | OraCachedSynthesisRecord | undefined;
+  peek(key: string): Promise<OraCachedSynthesisRecord | undefined> | OraCachedSynthesisRecord | undefined;
+  set(record: OraCachedSynthesisRecord): Promise<void> | void;
+  delete(key: string): Promise<boolean> | boolean;
+  list(query?: OraCacheQuery): Promise<OraCacheEntry[]> | OraCacheEntry[];
 };
 
 export type OraSynthesisContext = {
@@ -237,11 +300,17 @@ export type OraSynthesisStreamEvent = {
   mimeType?: string;
   charIndex?: number;
   timeMs?: number;
-  metadata?: Record<string, string | number | boolean | null>;
+  metadata?: OraMetadataMap;
 };
 
 export type OraTtsProvider = {
   id: OraProviderId;
+  label?: string;
+  listVoices?(): Promise<OraVoice[]> | OraVoice[];
+  getCacheKey?(
+    request: OraSynthesisRequest,
+    context: OraSynthesisContext,
+  ): Promise<string> | string;
   synthesize(
     request: OraSynthesisRequest,
     context: OraSynthesisContext,
@@ -252,9 +321,45 @@ export type OraTtsProvider = {
   ): AsyncIterable<OraSynthesisStreamEvent> | Promise<AsyncIterable<OraSynthesisStreamEvent>>;
 };
 
+export type OraProviderCapabilities = {
+  buffered: boolean;
+  streaming: boolean;
+  voiceDiscovery: boolean;
+};
+
+export type OraProviderSummary = {
+  id: OraProviderId;
+  label: string;
+  hasCredentials: boolean;
+  capabilities: OraProviderCapabilities;
+};
+
+export type OraProviderRequest = Omit<OraSynthesisRequest, "provider">;
+
+export type OraProviderClient = {
+  id: OraProviderId;
+  label: string;
+  raw(): OraTtsProvider;
+  summary(): OraProviderSummary;
+  hasCredentials(): boolean;
+  getCredentials(): OraCredentialMap | undefined;
+  setCredentials(credentials: OraCredentialMap): void;
+  deleteCredentials(): boolean;
+  listVoices(): Promise<OraVoice[]>;
+  synthesize(
+    request: OraProviderRequest,
+    options?: OraSynthesizeOptions,
+  ): Promise<OraSynthesisResponse>;
+  stream(
+    request: OraProviderRequest,
+    options?: OraSynthesizeOptions,
+  ): AsyncIterable<OraSynthesisStreamEvent>;
+};
+
 export type OraRuntimeOptions = {
   providers?: OraTtsProvider[];
   credentialStore?: OraCredentialStore;
+  cacheStore?: OraCacheStore;
   instrumentation?: OraInstrumentationSink[];
   now?: () => Date;
   createRequestId?: () => string;
@@ -271,10 +376,13 @@ export type OraRemoteTtsProviderOptions = {
   fetch?: typeof fetch;
 };
 
-export type OraWorkerVoice = {
-  id: string;
-  label?: string;
+export type OraWorkerAudioAsset = {
+  base64?: string;
+  url?: string;
+  mimeType?: string;
 };
+
+export type OraWorkerVoice = OraVoice;
 
 export type OraWorkerHealth = {
   ok: boolean;
@@ -292,7 +400,9 @@ export type OraWorkerSynthesisRequest = {
   rate?: number;
   instructions?: string;
   format?: OraAudioFormat;
-  metadata?: Record<string, string | number | boolean | null>;
+  preferences?: OraSynthesisPreferences;
+  plan?: OraResolvedSynthesisPlan;
+  metadata?: OraMetadataMap;
 };
 
 export type OraWorkerSynthesisResponse = {
@@ -302,18 +412,19 @@ export type OraWorkerSynthesisResponse = {
   rate: number;
   format: OraAudioFormat;
   cached: boolean;
+  audio?: OraWorkerAudioAsset;
   audioBase64?: string;
   audioUrl?: string;
   mimeType?: string;
   durationMs: number;
-  metadata?: Record<string, string | number | boolean | null>;
+  metadata?: OraMetadataMap;
 };
 
 export type OraWorkerStreamEvent =
   | {
       type: "started";
       requestId: string;
-      metadata?: Record<string, string | number | boolean | null>;
+      metadata?: OraMetadataMap;
     }
   | {
       type: "audio";
@@ -327,21 +438,25 @@ export type OraWorkerStreamEvent =
     }
   | {
       type: "metadata";
-      metadata?: Record<string, string | number | boolean | null>;
+      metadata?: OraMetadataMap;
     }
   | {
       type: "completed";
       timeMs?: number;
-      metadata?: Record<string, string | number | boolean | null>;
+      metadata?: OraMetadataMap;
     };
 
 export type OraWorkerSynthesisResult = {
+  audio?: OraAudioAsset;
   audioData?: Uint8Array;
   audioUrl?: string;
   mimeType?: string;
+  voice?: string;
+  rate?: number;
+  format?: OraAudioFormat;
   durationMs?: number;
   cached?: boolean;
-  metadata?: Record<string, string | number | boolean | null>;
+  metadata?: OraMetadataMap;
 };
 
 export type OraWorkerBackend = {
