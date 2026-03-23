@@ -59,6 +59,7 @@ const response = await openai.synthesize({
 });
 
 const providers = await runtime.listProviderSummaries();
+const catalog = await runtime.catalog();
 const cachedEntries = await runtime.queryCache({ provider: "openai" });
 ```
 
@@ -88,6 +89,10 @@ If you want to keep inference on another machine (for example a Mac mini), run a
 Worker endpoints:
 
 - `GET /health`
+- `GET /v1/providers`
+- `GET /v1/providers/:provider`
+- `GET /v1/providers/:provider/voices`
+- `GET /v1/catalog`
 - `GET /v1/voices`
 - `GET /v1/cache`
 - `GET /v1/cache/:cacheKey`

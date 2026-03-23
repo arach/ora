@@ -1,4 +1,5 @@
 export type {
+  OraCatalog,
   OraAudioAsset,
   OraAudioFormat,
   OraCacheEntry,
@@ -21,6 +22,7 @@ export type {
   OraPlaybackOrchestratorSnapshot,
   OraPlaybackTrackerOptions,
   OraProviderClient,
+  OraProviderCatalog,
   OraProviderCapabilities,
   OraProviderId,
   OraProviderRequest,

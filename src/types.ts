@@ -334,6 +334,14 @@ export type OraProviderSummary = {
   capabilities: OraProviderCapabilities;
 };
 
+export type OraProviderCatalog = OraProviderSummary & {
+  voices: OraVoice[];
+};
+
+export type OraCatalog = {
+  providers: OraProviderCatalog[];
+};
+
 export type OraProviderRequest = Omit<OraSynthesisRequest, "provider">;
 
 export type OraProviderClient = {
@@ -461,6 +469,7 @@ export type OraWorkerSynthesisResult = {
 
 export type OraWorkerBackend = {
   id: string;
+  label?: string;
   listVoices(): Promise<OraWorkerVoice[]> | OraWorkerVoice[];
   health(): Promise<{ ok: boolean }> | { ok: boolean };
   synthesize(

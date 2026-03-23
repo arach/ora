@@ -29,6 +29,10 @@ The worker owns:
 The built-in worker currently exposes:
 
 - `GET /health`
+- `GET /v1/providers`
+- `GET /v1/providers/:provider`
+- `GET /v1/providers/:provider/voices`
+- `GET /v1/catalog`
 - `GET /v1/voices`
 - `GET /v1/cache`
 - `GET /v1/cache/:cacheKey`
@@ -65,6 +69,7 @@ const runtime = createOraRuntime({
 });
 
 const providers = await runtime.listProviderSummaries();
+const catalog = await runtime.catalog();
 const voices = await runtime.listVoices("mini");
 ```
 

@@ -2,6 +2,7 @@ import { createDigest } from "./hash";
 import { OraMemoryCredentialStore } from "./credentials";
 import { resolveSynthesisPlan } from "./synthesis-plan";
 import type {
+  OraCatalog,
   OraAudioAsset,
   OraCacheEntry,
   OraCacheQuery,
@@ -12,6 +13,7 @@ import type {
   OraInstrumentationEvent,
   OraInstrumentationSink,
   OraProviderClient,
+  OraProviderCatalog,
   OraProviderCapabilities,
   OraProviderId,
   OraProviderRequest,
@@ -131,6 +133,17 @@ export class OraRuntime {
 
   async listProviderSummaries(): Promise<OraProviderSummary[]> {
     return this.providerClients().map((provider) => provider.summary());
+  }
+
+  async catalog(): Promise<OraCatalog> {
+    const providers = await Promise.all(
+      this.providerClients().map(async (provider): Promise<OraProviderCatalog> => ({
+        ...provider.summary(),
+        voices: await provider.listVoices(),
+      })),
+    );
+
+    return { providers };
   }
 
   async listVoices(providerId: OraProviderId): Promise<OraVoice[]> {
