@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import fs from "node:fs";
 import { createServer } from "node:http";
 import {
   createHttpOraWorkerBackend,
@@ -12,6 +11,32 @@ import {
 
 const servers: Array<ReturnType<typeof createOraWorkerServer>> = [];
 const upstreams: Array<ReturnType<typeof createServer>> = [];
+
+function createWaveFixture(durationMs = 120) {
+  const sampleRate = 8_000;
+  const channels = 1;
+  const bitsPerSample = 16;
+  const bytesPerSample = bitsPerSample / 8;
+  const frameCount = Math.max(1, Math.round((sampleRate * durationMs) / 1000));
+  const dataSize = frameCount * channels * bytesPerSample;
+  const buffer = Buffer.alloc(44 + dataSize);
+
+  buffer.write("RIFF", 0, "ascii");
+  buffer.writeUInt32LE(36 + dataSize, 4);
+  buffer.write("WAVE", 8, "ascii");
+  buffer.write("fmt ", 12, "ascii");
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(channels, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(sampleRate * channels * bytesPerSample, 28);
+  buffer.writeUInt16LE(channels * bytesPerSample, 32);
+  buffer.writeUInt16LE(bitsPerSample, 34);
+  buffer.write("data", 36, "ascii");
+  buffer.writeUInt32LE(dataSize, 40);
+
+  return buffer;
+}
 
 afterEach(async () => {
   while (servers.length > 0) {
@@ -191,7 +216,7 @@ describe("createRemoteTtsProvider", () => {
   });
 
   test("proxies synthesis through an upstream HTTP backend", async () => {
-    const fixture = fs.readFileSync("/Users/arach/dev/ora/.ora-output/kokoro-remote.wav");
+    const fixture = createWaveFixture();
     const upstream = createServer((request, response) => {
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
 
@@ -245,6 +270,7 @@ describe("createRemoteTtsProvider", () => {
 
     expect(response.metadata?.backend).toBe("http");
     expect(response.audioData).toEqual(new Uint8Array(fixture));
+    expect(response.durationMs).toBeGreaterThan(0);
   });
 
   test("preserves AIFF when the worker backend emits AIFF audio", async () => {

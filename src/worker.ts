@@ -163,15 +163,57 @@ function parseSayVoices(output: string): OraSystemVoice[] {
   return voices;
 }
 
-async function getAudioDurationMs(path: string) {
-  const { stdout } = await execFile("/usr/bin/afinfo", [path]);
-  const match = stdout.match(/estimated duration:\s+([0-9.]+)\s+sec/i);
-
-  if (!match) {
-    return 0;
+function parseWaveDurationMs(bytes: Uint8Array) {
+  if (bytes.length < 44) {
+    return null;
   }
 
-  return Math.round(Number(match[1]) * 1000);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const riff = String.fromCharCode(...bytes.slice(0, 4));
+  const wave = String.fromCharCode(...bytes.slice(8, 12));
+
+  if (riff !== "RIFF" || wave !== "WAVE") {
+    return null;
+  }
+
+  let offset = 12;
+  let sampleRate = 0;
+  let blockAlign = 0;
+
+  while (offset + 8 <= bytes.length) {
+    const chunkId = String.fromCharCode(...bytes.slice(offset, offset + 4));
+    const chunkSize = view.getUint32(offset + 4, true);
+    const chunkStart = offset + 8;
+
+    if (chunkId === "fmt " && chunkStart + 16 <= bytes.length) {
+      sampleRate = view.getUint32(chunkStart + 4, true);
+      blockAlign = view.getUint16(chunkStart + 12, true);
+    }
+
+    if (chunkId === "data" && sampleRate > 0 && blockAlign > 0) {
+      return Math.round((chunkSize / blockAlign / sampleRate) * 1000);
+    }
+
+    offset = chunkStart + chunkSize + (chunkSize % 2);
+  }
+
+  return null;
+}
+
+async function getAudioDurationMs(path: string) {
+  try {
+    const { stdout } = await execFile("/usr/bin/afinfo", [path]);
+    const match = stdout.match(/estimated duration:\s+([0-9.]+)\s+sec/i);
+
+    if (!match) {
+      return 0;
+    }
+
+    return Math.round(Number(match[1]) * 1000);
+  } catch {
+    const bytes = await readFile(path);
+    return parseWaveDurationMs(bytes) ?? 0;
+  }
 }
 
 async function readJsonBody(request: IncomingMessage) {
