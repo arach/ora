@@ -1,9 +1,6 @@
 name: Publish
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       npm_tag:
@@ -15,6 +12,7 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    environment: github-pages
     permissions:
       contents: read
       id-token: write
@@ -41,7 +39,7 @@ jobs:
 
       - name: Resolve npm dist-tag
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.npm_tag }}" ]; then
+          if [ -n "${{ github.event.inputs.npm_tag }}" ]; then
             echo "NPM_TAG=${{ github.event.inputs.npm_tag }}" >> "$GITHUB_ENV"
           else
             echo "NPM_TAG=latest" >> "$GITHUB_ENV"
