@@ -27,6 +27,15 @@ TTS providers and model hosts differ in API shape, authentication, and voice cat
 bun add @arach/ora
 ```
 
+`@arach/ora` also installs cleanly with `pnpm add @arach/ora` and
+`npm install @arach/ora`.
+
+The published package ships with:
+
+- ESM and CommonJS entrypoints
+- bundled TypeScript declarations for both module systems
+- the `ora-worker` CLI for local or remote worker processes
+
 ## Basic setup
 
 ```ts
@@ -86,6 +95,13 @@ The `stream` API is shared across providers that support it.
 
 If you want to keep inference on another machine (for example a Mac mini), run a worker and connect it through `createRemoteTtsProvider(...)`.
 
+After installing the package, run the worker with your package manager's exec command:
+
+```bash
+bunx ora-worker init --host 0.0.0.0 --port 4020 --token dev-secret
+bunx ora-worker serve --config .ora-worker/config.json
+```
+
 Worker endpoints:
 
 - `GET /health`
@@ -124,6 +140,7 @@ bun run setup:local
 bun run test
 bun run check
 bun run build
+bun run package:check
 bun run docs:generate
 bun run verify
 ```

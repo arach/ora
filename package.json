@@ -13,10 +13,16 @@
   },
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
-    }
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist"
@@ -24,6 +30,7 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --dts && tsup src/worker-cli.ts --format esm --out-dir dist",
     "check": "tsc --noEmit",
+    "package:check": "bun run build && bun x publint --strict && npm pack --dry-run",
     "prepare": "npm run build",
     "dev": "bun run scripts/dev.ts",
     "example:corpus": "bun run examples/run-corpus.ts",
@@ -49,7 +56,7 @@
     "verify": "bun run test && bun run check && bun run build && bun run content:generate",
     "setup:local": "bun install && bun run site:install && bun run tools:install && bun run tools:build",
     "run:all": "bun run tools:build && bun run verify",
-    "prepublishOnly": "bun run test && bun run check && bun run build"
+    "prepublishOnly": "bun run test && bun run check && bun run build && bun x publint --strict"
   },
   "keywords": [
     "tts",

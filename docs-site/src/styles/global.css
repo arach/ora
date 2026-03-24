@@ -248,6 +248,134 @@ a {
   font-weight: 400;
 }
 
+.docs-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.docs-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.66);
+  color: var(--ink);
+  text-decoration: none;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.docs-button-primary {
+  border-color: transparent;
+  background: var(--accent);
+  color: white;
+}
+
+.docs-install-panel,
+.docs-command-panel {
+  margin: 0 0 18px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--panel);
+  box-shadow: 0 24px 70px rgba(23, 32, 51, 0.06);
+}
+
+.docs-install-panel h2 {
+  margin: 12px 0 10px;
+  font-family: "Instrument Serif", serif;
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 0.98;
+  letter-spacing: -0.04em;
+  font-weight: 400;
+}
+
+.docs-install-panel p {
+  margin: 0;
+  max-width: 48rem;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.docs-mini-label {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+}
+
+.docs-install-grid,
+.docs-facts {
+  display: grid;
+  gap: 14px;
+}
+
+.docs-install-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin-top: 20px;
+}
+
+.docs-install-card,
+.docs-fact {
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.docs-install-card span,
+.docs-fact span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.docs-install-card code,
+.docs-fact strong {
+  color: var(--ink);
+  font-size: 0.96rem;
+}
+
+.docs-description code,
+.docs-fact code {
+  padding: 0.14em 0.38em;
+  border-radius: 6px;
+  background: rgba(15, 118, 110, 0.08);
+  color: #134e4a;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.92em;
+}
+
+.docs-facts {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin: 0 0 18px;
+}
+
+.docs-command-panel pre {
+  margin: 14px 0 0;
+  padding: 18px;
+  border-radius: 18px;
+  background: #15203a;
+  color: #eef4ff;
+  overflow: auto;
+}
+
+.docs-command-panel code {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+}
+
 .docs-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -304,5 +432,17 @@ a {
 
   .docs-main {
     padding: 22px;
+  }
+}
+
+@media (max-width: 720px) {
+  .docs-index {
+    width: min(1040px, calc(100vw - 24px));
+    padding-top: 32px;
+  }
+
+  .docs-install-panel,
+  .docs-command-panel {
+    padding: 18px;
   }
 }
