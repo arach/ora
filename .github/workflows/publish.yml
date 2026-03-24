@@ -5,6 +5,12 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      npm_tag:
+        description: "npm dist-tag to publish under"
+        required: false
+        default: "latest"
+        type: string
 
 jobs:
   publish:
@@ -33,7 +39,15 @@ jobs:
       - name: Verify package
         run: bun run prepublishOnly
 
+      - name: Resolve npm dist-tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.npm_tag }}" ]; then
+            echo "NPM_TAG=${{ github.event.inputs.npm_tag }}" >> "$GITHUB_ENV"
+          else
+            echo "NPM_TAG=latest" >> "$GITHUB_ENV"
+          fi
+
       - name: Publish to npm
-        run: npm publish --provenance --access public
+        run: npm publish --provenance --access public --tag "$NPM_TAG"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
