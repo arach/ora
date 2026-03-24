@@ -42,11 +42,18 @@ The built-in worker currently exposes:
 
 ## Built-In Worker CLI
 
-Build the package and start the worker:
+Install the package and start the worker through your package manager:
 
 ```bash
-pnpm install
-pnpm run build
+bun add @arach/ora
+bunx ora-worker init --host 0.0.0.0 --port 4020 --token dev-secret
+bunx ora-worker serve --config .ora-worker/config.json
+```
+
+If you are running from this repository instead of an installed package:
+
+```bash
+bun run build
 node dist/worker-cli.js init --host 0.0.0.0 --port 4020 --token dev-secret
 node dist/worker-cli.js serve --config .ora-worker/config.json
 ```

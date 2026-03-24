@@ -11,6 +11,14 @@ group: Getting Started
 bun add @arach/ora
 ```
 
+Ora also works with `pnpm add @arach/ora` and `npm install @arach/ora`.
+
+The published package includes:
+
+- ESM and CommonJS entrypoints
+- bundled TypeScript declarations
+- the `ora-worker` CLI for worker-based deployments
+
 ## Scope
 
 Ora is the coordination layer around speech synthesis, not a model runtime.
